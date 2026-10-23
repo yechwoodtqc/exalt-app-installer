@@ -53,7 +53,7 @@ public final class ActivationNotification {
         systemAdminConfirmation.putExtra(
                 DevicePolicyManager.EXTRA_ADD_EXPLANATION,
                 "YW app installer requests device administrator status. Android will ask you to approve or cancel.");
-        systemAdminConfirmation.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        // Do not add FLAG_ACTIVITY_NEW_TASK: Android's DeviceAdminAdd screen exits immediately if that flag is present.
 
         // Direct PendingIntent to the system intent resolver/admin UI. Do not
         // target AdminActivationActivity (or any YW Activity) as an intermediary.
