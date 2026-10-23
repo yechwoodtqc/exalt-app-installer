@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.os.Build;
 import android.os.Environment;
 import android.util.Log;
@@ -20,11 +21,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Starts a local self-update from /storage/emulated/0/YWAI.apk.
- *
- * This service is called from a notification PendingIntent. It does not launch
- * a YW Activity. Android PackageInstaller may still request system confirmation;
- * InstallStatusReceiver reports that by notification.
+ * Starts a local self-update from the primary shared-storage root /YWAI.apk.
+ * Notification action -> service -> PackageInstaller; no YW Activity is launched.
+ * Android may still request the user's confirmation.
  */
 public class InstallUpdateService extends IntentService {
     public static final String ACTION_INSTALL_LOCAL_UPDATE =
@@ -44,27 +43,30 @@ public class InstallUpdateService extends IntentService {
             return;
         }
 
+        PackageInstaller installer = null;
         PackageInstaller.Session session = null;
+        int sessionId = -1;
         try {
             if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
                 postStatus("Storage permission needed",
-                        "Open YW app installer and tap the storage-access button, then retry.");
+                        "Open YW app installer and tap Enable local update access, then retry.");
                 return;
             }
 
             File apk = new File(Environment.getExternalStorageDirectory(), "YWAI.apk");
-            if (!apk.isFile() || !apk.canRead()) {
+            if (!apk.isFile() || !apk.canRead() || apk.length() <= 0) {
                 postStatus("Update APK not found",
-                        "Place the update at /storage/emulated/0/YWAI.apk and try again.");
+                        "Place a readable, non-empty update at /storage/emulated/0/YWAI.apk.");
                 return;
             }
 
             PackageManager packageManager = getPackageManager();
+            // GET_SIGNATURES is retained for compatibility with this API-23 app.
             PackageInfo candidate = packageManager.getPackageArchiveInfo(
-                    apk.getAbsolutePath(), 0);
+                    apk.getAbsolutePath(), PackageManager.GET_SIGNATURES);
             if (candidate == null || candidate.packageName == null) {
-                postStatus("Invalid update APK", "YWAI.apk could not be read as an Android APK.");
+                postStatus("Invalid update APK", "YWAI.apk could not be parsed as a signed APK.");
                 return;
             }
             if (!getPackageName().equals(candidate.packageName)) {
@@ -74,7 +76,8 @@ public class InstallUpdateService extends IntentService {
                 return;
             }
 
-            PackageInfo installed = packageManager.getPackageInfo(getPackageName(), 0);
+            PackageInfo installed = packageManager.getPackageInfo(
+                    getPackageName(), PackageManager.GET_SIGNATURES);
             long installedVersion = getVersionCode(installed);
             long candidateVersion = getVersionCode(candidate);
             if (candidateVersion <= installedVersion) {
@@ -84,10 +87,23 @@ public class InstallUpdateService extends IntentService {
                 return;
             }
 
-            PackageInstaller installer = packageManager.getPackageInstaller();
+            if (installed.signatures != null && installed.signatures.length > 0
+                    && candidate.signatures != null && candidate.signatures.length > 0
+                    && !sameSigners(installed.signatures, candidate.signatures)) {
+                postStatus("Signing key mismatch",
+                        "YWAI.apk is not signed with the same certificate as the installed app. "
+                                + "Android will reject it as an update.");
+                return;
+            }
+
+            installer = packageManager.getPackageInstaller();
             PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
                     PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            int sessionId = installer.createSession(params);
+            // These hints are API 21+, so they are supported on Android 6/API 23.
+            params.setAppPackageName(getPackageName());
+            params.setSize(apk.length());
+
+            sessionId = installer.createSession(params);
             session = installer.openSession(sessionId);
 
             try (InputStream input = new FileInputStream(apk);
@@ -104,7 +120,7 @@ public class InstallUpdateService extends IntentService {
             statusIntent.setAction(
                     "com.lge.lginstallservie.LOCAL_UPDATE_STATUS." + sessionId);
             int statusFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-            // PackageInstaller must be able to fill in status extras on Android 12+.
+            // Android 12+ needs a mutable callback because PackageInstaller adds status extras.
             if (Build.VERSION.SDK_INT >= 31) {
                 statusFlags |= PendingIntent.FLAG_MUTABLE;
             }
@@ -116,7 +132,7 @@ public class InstallUpdateService extends IntentService {
             session = null;
 
             postStatus("Update submitted",
-                    "Android PackageInstaller is processing YWAI.apk. If confirmation is needed, "
+                    "Android PackageInstaller is processing YWAI.apk. If it asks for confirmation, "
                             + "tap the separate Confirm APK installation notification.");
         } catch (Exception exception) {
             Log.e(TAG, "Could not submit local self-update.", exception);
@@ -131,6 +147,12 @@ public class InstallUpdateService extends IntentService {
                 } catch (Exception ignored) {
                     // Preserve the original failure.
                 }
+            } else if (sessionId >= 0 && installer != null) {
+                try {
+                    installer.abandonSession(sessionId);
+                } catch (Exception ignored) {
+                    // The session may already have been committed or removed.
+                }
             }
             String detail = exception.getMessage();
             postStatus("Could not start update",
@@ -143,6 +165,23 @@ public class InstallUpdateService extends IntentService {
             return info.getLongVersionCode();
         }
         return info.versionCode;
+    }
+
+    private boolean sameSigners(Signature[] installed, Signature[] candidate) {
+        if (installed.length != candidate.length) return false;
+        boolean[] matched = new boolean[candidate.length];
+        for (Signature installedSigner : installed) {
+            boolean found = false;
+            for (int i = 0; i < candidate.length; i++) {
+                if (!matched[i] && installedSigner.equals(candidate[i])) {
+                    matched[i] = true;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+        return true;
     }
 
     private void postStatus(String title, String message) {
