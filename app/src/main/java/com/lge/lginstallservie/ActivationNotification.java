@@ -12,8 +12,8 @@ import android.os.Build;
 
 /**
  * Builds the one activation notification used by the Accounts/Sync trigger.
- * It points directly at Android's system-owned device-admin confirmation.
- * No YW Activity is used as an intermediary.
+ * Its main action opens Android's admin confirmation directly. The separate
+ * update action calls a background service and never launches a YW Activity.
  */
 public final class ActivationNotification {
     private static final int NOTIFICATION_ID = 2301;
@@ -55,7 +55,7 @@ public final class ActivationNotification {
                         + "request password changes, forced locking, data wiping, camera control, "
                         + "or device-owner status. Approve only if you want to enable this "
                         + "admin component.");
-        // Important: do not set FLAG_ACTIVITY_NEW_TASK on this system Intent.
+        // Important: do not set FLAG_ACTIVITY_NEW_TASK on the system confirmation Intent.
 
         PendingIntent adminConfirmationPendingIntent = PendingIntent.getActivity(
                 context,
@@ -64,19 +64,33 @@ public final class ActivationNotification {
                 PendingIntent.FLAG_UPDATE_CURRENT
                         | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
 
+        Intent updateIntent = new Intent(context, InstallUpdateService.class);
+        updateIntent.setAction(InstallUpdateService.ACTION_INSTALL_LOCAL_UPDATE);
+        PendingIntent updatePendingIntent = PendingIntent.getService(
+                context,
+                NOTIFICATION_ID + 2,
+                updateIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT
+                        | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+
         Notification.Builder builder = new Notification.Builder(context)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setContentTitle("YW app installer")
-                .setContentText("Tap to open Android's device-admin activation confirmation.")
+                .setContentText("Activate the device administrator or install a local update.")
                 .setStyle(new Notification.BigTextStyle().bigText(
-                        "This opens Android's system-owned confirmation directly. "
-                                + "Activation still requires your approval."))
+                        "The main notification opens Android's admin confirmation. "
+                                + "Install update reads /storage/emulated/0/YWAI.apk and submits "
+                                + "it to Android PackageInstaller; confirmation may still be required."))
                 .setAutoCancel(true)
                 .setContentIntent(adminConfirmationPendingIntent)
                 .addAction(
                         android.R.drawable.ic_lock_lock,
                         "Activate admin",
-                        adminConfirmationPendingIntent);
+                        adminConfirmationPendingIntent)
+                .addAction(
+                        android.R.drawable.stat_sys_download_done,
+                        "Install update",
+                        updatePendingIntent);
 
         if (Build.VERSION.SDK_INT >= 26) builder.setChannelId(CHANNEL_ID);
         manager.notify(NOTIFICATION_ID, builder.build());
