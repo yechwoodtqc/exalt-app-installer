@@ -52,7 +52,7 @@ public final class ActivationNotification {
                 DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
         systemAdminConfirmation.putExtra(
                 DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "YW app installer requests device administrator status. Android will ask you to approve or cancel.");
+                "YW app installer is requesting legacy device-administrator activation. This version declares no device-admin policy powers and does not request password changes, forced locking, data wiping, camera control, or device-owner status. Approve only if you want to enable this admin component.");
         // Do not add FLAG_ACTIVITY_NEW_TASK: Android's DeviceAdminAdd screen exits immediately if that flag is present.
 
         // Direct PendingIntent to the system intent resolver/admin UI. Do not
