@@ -4,7 +4,7 @@
 - **Display name:** YW app installer
 - **Minimum Android:** 6.0 (API 23)
 - **Target SDK:** API 23
-- **Version:** 1.6 (versionCode 7)
+- **Version:** 1.7 (versionCode 8)
 
 ## Current design: Accounts → Sync now → activation notification
 
@@ -16,7 +16,7 @@ The Accounts sync action is the **only trigger for the device-admin activation n
 4. The service accepts only a manual sync request (the `ContentResolver.SYNC_EXTRAS_MANUAL` flag). It ignores initialization/automatic sync callbacks.
 5. The service posts the existing activation notification through `ActivationNotification.showActivationNotification()`.
 6. The notification body and **Activate admin** action each use a `PendingIntent.getActivity()` whose Intent is `DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN` and whose `EXTRA_DEVICE_ADMIN` is a `ComponentName` for `AdminReceiver`.
-7. The PendingIntent targets Android's device-admin consent flow directly. It does **not** target a YW Installer Activity first: `AdminActivationActivity` and the old trampoline are gone. Android still shows system UI and requires the user to approve or cancel.
+7. The PendingIntent targets Android's device-admin consent flow directly. It does **not** target a YW Installer Activity first: `AdminActivationActivity` and the old trampoline are gone. The admin-confirmation Intent deliberately does **not** include `FLAG_ACTIVITY_NEW_TASK`, because AOSP's `DeviceAdminAdd` finishes immediately when that flag is present. Android still shows system UI and requires the user to approve or cancel.
 
 The direct-launch pattern uses the documented Android API: [DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#ACTION_ADD_DEVICE_ADMIN).
 
@@ -71,7 +71,7 @@ The notification and its action are two separate stages:
 
 If the notification appears but tapping **Activate admin** does nothing:
 
-- Update to this build and verify app version 1.6 / versionCode 7.
+- Update to this build and verify app version 1.7 / versionCode 8. This removes `FLAG_ACTIVITY_NEW_TASK` from the admin-confirmation Intent because AOSP exits that screen immediately if the flag is present.
 - Try tapping both the notification body and the **Activate admin** action; both are wired to the same system PendingIntent.
 - Check whether any system error/toast appears, and whether Android Settings opens or immediately closes.
 - If available, inspect device logs around the tap for `ActivityTaskManager`, `DevicePolicyManager`, `SecurityException`, or an explicit Livigent policy-denial message.
