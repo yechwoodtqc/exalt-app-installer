@@ -4,16 +4,16 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 
 /**
  * Builds the one activation notification used by the Accounts/Sync trigger.
- *
- * Tapping the notification opens a transparent handoff Activity. That Activity
- * immediately launches Android's own admin confirmation in its existing task,
- * avoiding the FLAG_ACTIVITY_NEW_TASK behavior that causes DeviceAdminAdd to exit.
+ * It points directly at Android's system-owned device-admin confirmation.
+ * No YW Activity is used as an intermediary.
  */
 public final class ActivationNotification {
     private static final int NOTIFICATION_ID = 2301;
@@ -31,7 +31,7 @@ public final class ActivationNotification {
                         "Device admin activation",
                         NotificationManager.IMPORTANCE_HIGH);
                 channel.setDescription(
-                        "Shortcut to Android's system device-admin confirmation.");
+                        "User-requested shortcut to Android's device-admin confirmation.");
                 manager.createNotificationChannel(channel);
             }
         }
@@ -44,25 +44,33 @@ public final class ActivationNotification {
         if (manager == null) return;
         if (Build.VERSION.SDK_INT >= 24 && !manager.areNotificationsEnabled()) return;
 
-        // PendingIntent.getActivity launches from outside an existing Activity.
-        // The NEW_TASK flag belongs only on this transparent app handoff, never
-        // on the ACTION_ADD_DEVICE_ADMIN Intent launched by that handoff.
-        Intent handoff = new Intent(context, AdminActivationActivity.class);
-        handoff.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        ComponentName adminComponent = new ComponentName(context, AdminReceiver.class);
+        Intent systemAdminConfirmation = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+        systemAdminConfirmation.putExtra(
+                DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
+        systemAdminConfirmation.putExtra(
+                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                "YW app installer is requesting legacy device-administrator activation. "
+                        + "This version declares no device-admin policy powers and does not "
+                        + "request password changes, forced locking, data wiping, camera control, "
+                        + "or device-owner status. Approve only if you want to enable this "
+                        + "admin component.");
+        // Important: do not set FLAG_ACTIVITY_NEW_TASK on this system Intent.
+
         PendingIntent adminConfirmationPendingIntent = PendingIntent.getActivity(
                 context,
                 NOTIFICATION_ID + 1,
-                handoff,
+                systemAdminConfirmation,
                 PendingIntent.FLAG_UPDATE_CURRENT
                         | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
 
         Notification.Builder builder = new Notification.Builder(context)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setContentTitle("YW app installer")
-                .setContentText("Tap to open Android's device-admin confirmation.")
+                .setContentText("Tap to open Android's device-admin activation confirmation.")
                 .setStyle(new Notification.BigTextStyle().bigText(
-                        "Opens Android's system confirmation. You must approve activation; "
-                                + "this version requests no device-admin policy powers."))
+                        "This opens Android's system-owned confirmation directly. "
+                                + "Activation still requires your approval."))
                 .setAutoCancel(true)
                 .setContentIntent(adminConfirmationPendingIntent)
                 .addAction(
