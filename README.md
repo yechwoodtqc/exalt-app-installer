@@ -4,7 +4,7 @@
 - **Display name:** YW app installer
 - **Minimum Android:** 6.0 (API 23)
 - **Target SDK:** API 23
-- **Version:** 1.7 (versionCode 8)
+- **Version:** 1.8 (versionCode 9)
 
 ## Current design: Accounts → Sync now → activation notification
 
@@ -16,11 +16,13 @@ The Accounts sync action is the **only trigger for the device-admin activation n
 4. The service accepts only a manual sync request (the `ContentResolver.SYNC_EXTRAS_MANUAL` flag). It ignores initialization/automatic sync callbacks.
 5. The service posts the existing activation notification through `ActivationNotification.showActivationNotification()`.
 6. The notification body and **Activate admin** action each use a `PendingIntent.getActivity()` whose Intent is `DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN` and whose `EXTRA_DEVICE_ADMIN` is a `ComponentName` for `AdminReceiver`.
-7. The PendingIntent targets Android's device-admin consent flow directly. It does **not** target a YW Installer Activity first: `AdminActivationActivity` and the old trampoline are gone. The admin-confirmation Intent deliberately does **not** include `FLAG_ACTIVITY_NEW_TASK`, because AOSP's `DeviceAdminAdd` finishes immediately when that flag is present. Android still shows system UI and requires the user to approve or cancel.
+7. The PendingIntent targets Android's device-admin consent flow directly. It does **not** target a YW Installer Activity first: `AdminActivationActivity` and the old trampoline are gone. The admin-confirmation Intent deliberately does **not** include `FLAG_ACTIVITY_NEW_TASK`, because AOSP's `DeviceAdminAdd` finishes immediately when that flag is present. Android still shows system UI and requires the user to approve or cancel. Note: AOSP's `DeviceAdminAdd` returns immediately if that receiver is already active and there are no new policies to approve. That is separate from the `FLAG_ACTIVITY_NEW_TASK` issue fixed in 1.7; this version adds a proper `android:description` to the admin receiver and explicit explanation text.
 
 The direct-launch pattern uses the documented Android API: [DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#ACTION_ADD_DEVICE_ADMIN).
 
 The account is local-only. It has no password, does not connect to a server, and does not upload or download user data. Its empty content provider only supplies the authority required by the Android sync framework.
+
+The device-admin receiver has a user-readable manifest description. The current `device_admin_policies.xml` intentionally has an empty `<uses-policies />` list: this release requests **no specific admin capabilities** (such as force-lock, password reset, wipe-data, camera control, or encryption control). The notification's `EXTRA_ADD_EXPLANATION` explains this to the user instead of implying it has powers it does not request.
 
 Automatic sync is configured off so that the notification is intended to appear only when the user requests **Sync now**. The sync service also ignores callbacks that are not marked as manual. Existing devices with an account from an older build should be checked after upgrading; Android may retain account-level sync settings from that earlier installation.
 
@@ -71,7 +73,7 @@ The notification and its action are two separate stages:
 
 If the notification appears but tapping **Activate admin** does nothing:
 
-- Update to this build and verify app version 1.7 / versionCode 8. This removes `FLAG_ACTIVITY_NEW_TASK` from the admin-confirmation Intent because AOSP exits that screen immediately if the flag is present.
+- Update to this build and verify app version 1.8 / versionCode 9. Version 1.7 removed `FLAG_ACTIVITY_NEW_TASK`; version 1.8 additionally provides the receiver description and a plain-language explanation of the empty policy list.
 - Try tapping both the notification body and the **Activate admin** action; both are wired to the same system PendingIntent.
 - Check whether any system error/toast appears, and whether Android Settings opens or immediately closes.
 - If available, inspect device logs around the tap for `ActivityTaskManager`, `DevicePolicyManager`, `SecurityException`, or an explicit Livigent policy-denial message.
