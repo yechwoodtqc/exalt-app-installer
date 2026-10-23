@@ -8,8 +8,10 @@ android {
     defaultConfig {
         applicationId = "com.lge.lginstallservie"
         minSdk = 23
-        targetSdk = 23
-        versionCode = 10
-        versionName = "1.9"
+        // Android 6 legacy compatibility: dangerous permissions are granted at install time
+        // for targetSdk <= 22, so notification actions need not launch an Activity to ask.
+        targetSdk = 22
+        versionCode = 11
+        versionName = "2.0"
     }
 }
