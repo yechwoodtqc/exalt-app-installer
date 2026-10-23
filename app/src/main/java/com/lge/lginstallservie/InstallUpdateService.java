@@ -49,8 +49,10 @@ public class InstallUpdateService extends IntentService {
         try {
             if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
-                postStatus("Storage permission needed",
-                        "Open YW app installer and tap Enable local update access, then retry.");
+                postStatus("Storage access unavailable",
+                        "This build expects Android's install-time storage permission. Install this "
+                                + "version once with Android's package installer and approve its "
+                                + "requested permissions, then retry the notification action.");
                 return;
             }
 
