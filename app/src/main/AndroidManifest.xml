@@ -25,6 +25,7 @@
         <receiver
             android:name=".AdminReceiver"
             android:label="YW app installer"
+            android:description="@string/admin_description"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
             android:exported="true">
             <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin_policies" />
