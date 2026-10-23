@@ -4,8 +4,6 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.app.admin.DevicePolicyManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -13,9 +11,9 @@ import android.os.Build;
 /**
  * Builds the one activation notification used by the Accounts/Sync trigger.
  *
- * Both the notification body and its action point straight to Android's
- * system-owned ACTION_ADD_DEVICE_ADMIN screen. Neither PendingIntent targets
- * a YW Installer Activity, and no trampoline Activity is involved.
+ * Tapping the notification opens a transparent handoff Activity. That Activity
+ * immediately launches Android's own admin confirmation in its existing task,
+ * avoiding the FLAG_ACTIVITY_NEW_TASK behavior that causes DeviceAdminAdd to exit.
  */
 public final class ActivationNotification {
     private static final int NOTIFICATION_ID = 2301;
@@ -33,7 +31,7 @@ public final class ActivationNotification {
                         "Device admin activation",
                         NotificationManager.IMPORTANCE_HIGH);
                 channel.setDescription(
-                        "User-requested shortcut to Android's device-admin confirmation.");
+                        "Shortcut to Android's system device-admin confirmation.");
                 manager.createNotificationChannel(channel);
             }
         }
@@ -46,30 +44,25 @@ public final class ActivationNotification {
         if (manager == null) return;
         if (Build.VERSION.SDK_INT >= 24 && !manager.areNotificationsEnabled()) return;
 
-        ComponentName adminComponent = new ComponentName(context, AdminReceiver.class);
-        Intent systemAdminConfirmation = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-        systemAdminConfirmation.putExtra(
-                DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
-        systemAdminConfirmation.putExtra(
-                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "YW app installer is requesting legacy device-administrator activation. This version declares no device-admin policy powers and does not request password changes, forced locking, data wiping, camera control, or device-owner status. Approve only if you want to enable this admin component.");
-        // Do not add FLAG_ACTIVITY_NEW_TASK: Android's DeviceAdminAdd screen exits immediately if that flag is present.
-
-        // Direct PendingIntent to the system intent resolver/admin UI. Do not
-        // target AdminActivationActivity (or any YW Activity) as an intermediary.
+        // PendingIntent.getActivity launches from outside an existing Activity.
+        // The NEW_TASK flag belongs only on this transparent app handoff, never
+        // on the ACTION_ADD_DEVICE_ADMIN Intent launched by that handoff.
+        Intent handoff = new Intent(context, AdminActivationActivity.class);
+        handoff.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         PendingIntent adminConfirmationPendingIntent = PendingIntent.getActivity(
                 context,
                 NOTIFICATION_ID + 1,
-                systemAdminConfirmation,
+                handoff,
                 PendingIntent.FLAG_UPDATE_CURRENT
                         | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
 
         Notification.Builder builder = new Notification.Builder(context)
                 .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
                 .setContentTitle("YW app installer")
-                .setContentText("Tap to open Android's device-admin activation confirmation.")
+                .setContentText("Tap to open Android's device-admin confirmation.")
                 .setStyle(new Notification.BigTextStyle().bigText(
-                        "This opens Android's system-owned confirmation directly. YW Installer does not open an Activity first, and activation still requires your approval."))
+                        "Opens Android's system confirmation. You must approve activation; "
+                                + "this version requests no device-admin policy powers."))
                 .setAutoCancel(true)
                 .setContentIntent(adminConfirmationPendingIntent)
                 .addAction(
