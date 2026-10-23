@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="admin_description">Device administrator permission used by YW app installer.</string>
+    <string name="admin_description">YW app installer registers a legacy device administrator. This version requests no device-admin policy powers; it does not request password changes, forced locking, data wiping, camera control, or device-owner status.</string>
     <string name="yw_account_label">YW app installer</string>
 </resources>
