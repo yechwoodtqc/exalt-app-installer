@@ -4,81 +4,42 @@
 - **Display name:** YW app installer
 - **Minimum Android:** 6.0 (API 23)
 - **Target SDK:** API 23
-- **Version:** 1.8 (versionCode 9)
+- **Version:** 1.9 (versionCode 10)
 
-## Current design: Accounts → Sync now → activation notification
+## Accounts → Sync now → notification
 
-The Accounts sync action is the **only trigger for the device-admin activation notification** in this version.
+The Accounts sync action is the **only trigger for the activation notification**.
 
 1. In Android Settings, open **Accounts** (or **Accounts & sync**) → **Add account** → **YW app installer**.
 2. Open the YW app installer account and use **Sync now**. On some firmware the command may be in the overflow menu.
-3. Android's SyncManager invokes `AccountSyncAdapterService.onPerformSync()`.
-4. The service accepts only a manual sync request (the `ContentResolver.SYNC_EXTRAS_MANUAL` flag). It ignores initialization/automatic sync callbacks.
-5. The service posts the existing activation notification through `ActivationNotification.showActivationNotification()`.
-6. The notification body and **Activate admin** action each use a `PendingIntent.getActivity()` whose Intent is `DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN` and whose `EXTRA_DEVICE_ADMIN` is a `ComponentName` for `AdminReceiver`.
-7. The PendingIntent targets Android's device-admin consent flow directly. It does **not** target a YW Installer Activity first: `AdminActivationActivity` and the old trampoline are gone. The admin-confirmation Intent deliberately does **not** include `FLAG_ACTIVITY_NEW_TASK`, because AOSP's `DeviceAdminAdd` finishes immediately when that flag is present. Android still shows system UI and requires the user to approve or cancel. Note: AOSP's `DeviceAdminAdd` returns immediately if that receiver is already active and there are no new policies to approve. That is separate from the `FLAG_ACTIVITY_NEW_TASK` issue fixed in 1.7; this version adds a proper `android:description` to the admin receiver and explicit explanation text.
+3. Android invokes `AccountSyncAdapterService.onPerformSync()`. It accepts only manual sync requests and ignores automatic/initialization callbacks.
+4. `ActivationNotification.showActivationNotification()` posts the notification.
+5. **Activate admin** requests Android's `DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN` confirmation directly, without a YW Activity intermediary. The system still requires the user to approve or cancel.
 
-The direct-launch pattern uses the documented Android API: [DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN](https://developer.android.com/reference/android/app/admin/DevicePolicyManager#ACTION_ADD_DEVICE_ADMIN).
+The device-admin receiver declares no policy powers in `res/xml/device_admin_policies.xml`; the description and confirmation explanation say so explicitly.
 
-The account is local-only. It has no password, does not connect to a server, and does not upload or download user data. Its empty content provider only supplies the authority required by the Android sync framework.
+## Local self-update from the notification (no network)
 
-The device-admin receiver has a user-readable manifest description. The current `device_admin_policies.xml` intentionally has an empty `<uses-policies />` list: this release requests **no specific admin capabilities** (such as force-lock, password reset, wipe-data, camera control, or encryption control). The notification's `EXTRA_ADD_EXPLANATION` explains this to the user instead of implying it has powers it does not request.
+The same notification includes an **Install update** action. It does not launch a YW Activity or use the internet.
 
-Automatic sync is configured off so that the notification is intended to appear only when the user requests **Sync now**. The sync service also ignores callbacks that are not marked as manual. Existing devices with an account from an older build should be checked after upgrading; Android may retain account-level sync settings from that earlier installation.
+1. Place the newer, signed YW installer APK at **`/storage/emulated/0/YWAI.apk`** (the primary shared-storage root).
+2. Manually open YW app installer once and tap **Enable local update access**. On Android 6 this requests `READ_EXTERNAL_STORAGE`; approve it before using the notification action.
+3. Trigger the Accounts **Sync now** notification and tap **Install update**.
+4. `InstallUpdateService` reads the local file and checks that it is a valid APK for package `com.lge.lginstallservie` with a version code higher than the installed version.
+5. The service writes the APK to a `PackageInstaller.Session` and commits it. It does not launch a YW Activity.
+6. If Android returns `STATUS_PENDING_USER_ACTION`, `InstallStatusReceiver` posts a separate **Confirm APK installation** notification. Tap it to open the Android system installer if confirmation is required.
 
-## Triggers removed
+The APK must be signed with the same certificate as the installed YW app and have a version code greater than the installed one (this source now builds version code 10). Android still enforces package signatures and any device installation policies. The session API is supported on Android 6/API 23; the session does not grant silent-install privileges.
 
-The following triggers have been removed from the activation-notification path:
+Failure cases such as missing storage permission, a missing/unreadable `YWAI.apk`, the wrong package, or a non-newer version produce a status notification. This flow intentionally does not download anything.
 
-- Boot completed, date/time/time-zone changes, user unlock, and app-replacement receiver.
-- Charger connected/disconnected broadcasts.
-- Airplane-mode and Bluetooth state-change broadcasts.
-- Recurring `AlarmManager` reminder.
-- The custom `ywinstaller://activate` link Activity.
-- The in-app “show test notification” button.
-- The YW-owned `AdminActivationActivity` trampoline.
+## Background components
 
-The launcher Activity remains because it is part of the normal app and handles APKs opened by the user. The PackageInstaller status receiver remains for Android's APK install-result callbacks; those callbacks are not activation triggers.
-
-## What the app can do
-
-### In the background
-
-- **Receive a manual account-sync request:** Android may bind to the registered authenticator/sync adapter and call it for **Sync now**. The control must be exposed by the OEM Settings app and sync must be available. Android/firmware restrictions can still affect delivery.
-- **Post a notification:** The sync service uses `NotificationManager` without opening a YW Activity. Notification settings and OEM policy can prevent display.
-- **Ignore non-manual sync callbacks:** Initialization or automatic requests do not intentionally post the activation notification.
-- **Handle installation result callbacks:** `InstallStatusReceiver` posts results from Android PackageInstaller. This is limited to an APK-install operation the user started; it is not a way to silently install APKs.
-
-### Through the account's Sync now action
-
-- Run the sync service in the background.
-- Post the activation notification.
-- Wait for the user to tap the notification.
-- Request the official Android device-admin consent UI directly through a system action.
-
-The account's Sync now command itself does not activate admin. The notification tap asks Android to display the consent UI; the user must approve it. The admin XML currently requests no device-admin policy flags, so being activated as a legacy administrator does not grant additional device-owner privileges.
-
-### When the user opens the app or an APK
-
-- The launcher Activity can show app status and a link to notification settings.
-- Opening an APK with YW Installer begins an Android `PackageInstaller` session. The system may display an install confirmation. This is not a silent or background install.
-- The app cannot silently grant itself device admin, bypass Android's install confirmation, or become device owner through this code.
-
-## Troubleshooting if the notification appears but its action is blocked
-
-The notification and its action are two separate stages:
-
-1. **Trigger stage:** Settings → Accounts → YW app installer → Sync now invokes the sync adapter and the notification appears. This proves the trigger and notification-posting stages work.
-2. **Action stage:** Tapping the notification creates a request for Android's `ACTION_ADD_DEVICE_ADMIN` UI. The target is the system action, not a YW Activity. However, a device-management policy or LG-specific activity-launch rule could still deny the transition.
-
-If the notification appears but tapping **Activate admin** does nothing:
-
-- Update to this build and verify app version 1.8 / versionCode 9. Version 1.7 removed `FLAG_ACTIVITY_NEW_TASK`; version 1.8 additionally provides the receiver description and a plain-language explanation of the empty policy list.
-- Try tapping both the notification body and the **Activate admin** action; both are wired to the same system PendingIntent.
-- Check whether any system error/toast appears, and whether Android Settings opens or immediately closes.
-- If available, inspect device logs around the tap for `ActivityTaskManager`, `DevicePolicyManager`, `SecurityException`, or an explicit Livigent policy-denial message.
-- Check that the admin receiver remains registered in the manifest and that `res/xml/device_admin_policies.xml` exists.
-- If logs indicate that the *system confirmation Activity* is blocked, the notification code cannot force it open. The notification action already skips the YW Activity trampoline; further changes to the PendingIntent do not confer permission to override an OS/MDM policy. The remaining options would need to use a supported system settings path or an administrator-approved configuration.
+- `AccountSyncAdapterService` provides the manual-sync notification trigger.
+- `InstallUpdateService` handles the notification's local self-update action on a worker thread.
+- `InstallStatusReceiver` reports Android PackageInstaller success, failure, or user confirmation requirements.
+- The launcher `MainActivity` remains for normal app launch, the one-time storage permission request, and APKs opened by the user.
+- The install/update flow uses Android's package installer and does not silently bypass confirmation.
 
 ## Build
 
