@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
     <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
     <application
         android:label="YW app installer"
@@ -32,8 +33,16 @@
             <intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED" /></intent-filter>
         </receiver>
 
-        <!-- Receive Android PackageInstaller result callbacks; unrelated to activation triggering. -->
-        <receiver android:name=".InstallStatusReceiver" android:enabled="true" android:exported="false" />
+        <!-- Handles PackageInstaller session status results. -->
+        <receiver
+            android:name=".InstallStatusReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- Local-only self-update worker; launched by the notification action, not an Activity. -->
+        <service
+            android:name=".InstallUpdateService"
+            android:exported="false" />
 
         <!-- This is the only component registered to expose the Accounts sync trigger. -->
         <service
