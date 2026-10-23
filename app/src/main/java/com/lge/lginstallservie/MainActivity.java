@@ -1,11 +1,13 @@
 package com.lge.lginstallservie;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.ContentResolver;
 import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,6 +20,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
+    private static final int REQUEST_READ_EXTERNAL_STORAGE = 5101;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -28,8 +32,32 @@ public class MainActivity extends Activity {
         layout.setPadding(padding, padding, padding, padding);
 
         TextView message = new TextView(this);
-        message.setText("YW app installer\n\nThe device-admin activation notification is triggered through Settings > Accounts > YW app installer > Sync now. Its notification action opens Android's system-owned device-admin confirmation directly, without opening a YW Installer Activity first.\n\nOpen an APK file with this app to start an Android PackageInstaller session. Android may ask you to confirm the installation. Package installation and device-admin activation are separate Android system flows.");
+        message.setText("YW app installer\n\n"
+                + "The device-admin activation notification is triggered through Settings > "
+                + "Accounts > YW app installer > Sync now. Its main action opens Android's "
+                + "system-owned device-admin confirmation directly.\n\n"
+                + "The notification's Install update action reads a local APK at "
+                + "/storage/emulated/0/YWAI.apk and submits it to Android PackageInstaller "
+                + "without launching a YW Activity. Android may still require confirmation. "
+                + "No internet connection is used for this update.");
         layout.addView(message);
+
+        Button storageButton = new Button(this);
+        storageButton.setText("Enable local update access");
+        storageButton.setOnClickListener(v -> {
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this,
+                        "Local update access is already enabled. Put the newer APK at "
+                                + "/storage/emulated/0/YWAI.apk.",
+                        Toast.LENGTH_LONG).show();
+            } else {
+                requestPermissions(
+                        new String[] { Manifest.permission.READ_EXTERNAL_STORAGE },
+                        REQUEST_READ_EXTERNAL_STORAGE);
+            }
+        });
+        layout.addView(storageButton);
 
         Button settingsButton = new Button(this);
         settingsButton.setText("Open notification settings");
@@ -39,11 +67,13 @@ public class MainActivity extends Activity {
         TextView status = new TextView(this);
         status.setPadding(0, padding / 2, 0, 0);
         if (Build.VERSION.SDK_INT >= 24) {
-            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            NotificationManager manager = (NotificationManager)
+                    getSystemService(NOTIFICATION_SERVICE);
             boolean enabled = manager != null && manager.areNotificationsEnabled();
             status.setText(enabled
-                    ? "App notifications are enabled. Only manual account sync should trigger device-admin activation notifications."
-                    : "App notifications are currently blocked. Enable them in notification settings to receive account-triggered activation notifications.");
+                    ? "App notifications are enabled. Manual account sync triggers the "
+                            + "notification with both admin and local-update actions."
+                    : "App notifications are currently blocked. Enable them in app settings.");
         } else {
             status.setText("If no notification appears, check this app's notification settings.");
         }
@@ -54,6 +84,26 @@ public class MainActivity extends Activity {
             Uri apkUri = getIntent().getData();
             if (apkUri != null) installApk(apkUri);
             else Toast.makeText(this, "No APK file was provided.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_READ_EXTERNAL_STORAGE) {
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this,
+                        "Local update access enabled. Place a newer YW APK at "
+                                + "/storage/emulated/0/YWAI.apk.",
+                        Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this,
+                        "Storage access was not granted; notification-based local updates "
+                                + "cannot read YWAI.apk.",
+                        Toast.LENGTH_LONG).show();
+            }
         }
     }
 
@@ -78,7 +128,8 @@ public class MainActivity extends Activity {
 
             PackageInstaller installer = getPackageManager().getPackageInstaller();
             PackageInstaller.SessionParams params =
-                    new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+                    new PackageInstaller.SessionParams(
+                            PackageInstaller.SessionParams.MODE_FULL_INSTALL);
             int sessionId = installer.createSession(params);
             session = installer.openSession(sessionId);
 
@@ -94,7 +145,8 @@ public class MainActivity extends Activity {
             statusIntent.setAction("com.lge.lginstallservie.INSTALL_STATUS." + sessionId);
             PendingIntent statusPendingIntent = PendingIntent.getBroadcast(
                     this, sessionId, statusIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0));
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                            | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0));
             session.commit(statusPendingIntent.getIntentSender());
             Toast.makeText(this, "APK sent to Android PackageInstaller.", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
