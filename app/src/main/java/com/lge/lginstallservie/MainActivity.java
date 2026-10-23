@@ -1,13 +1,11 @@
 package com.lge.lginstallservie;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.ContentResolver;
 import android.content.pm.PackageInstaller;
-import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,8 +18,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
-    private static final int REQUEST_READ_EXTERNAL_STORAGE = 5101;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -39,25 +35,10 @@ public class MainActivity extends Activity {
                 + "The notification's Install update action reads a local APK at "
                 + "/storage/emulated/0/YWAI.apk and submits it to Android PackageInstaller "
                 + "without launching a YW Activity. Android may still require confirmation. "
-                + "No internet connection is used for this update.");
+                + "No internet connection is used for this update.\n\n"
+                + "This Android 6-compatible build requests shared-storage access at install "
+                + "time so the notification action does not need to open an Activity.");
         layout.addView(message);
-
-        Button storageButton = new Button(this);
-        storageButton.setText("Enable local update access");
-        storageButton.setOnClickListener(v -> {
-            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
-                    == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this,
-                        "Local update access is already enabled. Put the newer APK at "
-                                + "/storage/emulated/0/YWAI.apk.",
-                        Toast.LENGTH_LONG).show();
-            } else {
-                requestPermissions(
-                        new String[] { Manifest.permission.READ_EXTERNAL_STORAGE },
-                        REQUEST_READ_EXTERNAL_STORAGE);
-            }
-        });
-        layout.addView(storageButton);
 
         Button settingsButton = new Button(this);
         settingsButton.setText("Open notification settings");
@@ -84,26 +65,6 @@ public class MainActivity extends Activity {
             Uri apkUri = getIntent().getData();
             if (apkUri != null) installApk(apkUri);
             else Toast.makeText(this, "No APK file was provided.", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_READ_EXTERNAL_STORAGE) {
-            if (grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this,
-                        "Local update access enabled. Place a newer YW APK at "
-                                + "/storage/emulated/0/YWAI.apk.",
-                        Toast.LENGTH_LONG).show();
-            } else {
-                Toast.makeText(this,
-                        "Storage access was not granted; notification-based local updates "
-                                + "cannot read YWAI.apk.",
-                        Toast.LENGTH_LONG).show();
-            }
         }
     }
 
