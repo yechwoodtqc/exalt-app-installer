@@ -1,4 +1,4 @@
-package com.lge.lginstallservie;
+package com.lge.lginstallservice;
 
 import android.app.Activity;
 import android.app.NotificationManager;
@@ -103,7 +103,7 @@ public class MainActivity extends Activity {
             }
 
             Intent statusIntent = new Intent(this, InstallStatusReceiver.class);
-            statusIntent.setAction("com.lge.lginstallservie.INSTALL_STATUS." + sessionId);
+            statusIntent.setAction("com.lge.lginstallservice.INSTALL_STATUS." + sessionId);
             PendingIntent statusPendingIntent = PendingIntent.getBroadcast(
                     this, sessionId, statusIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT
