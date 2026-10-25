@@ -1,4 +1,4 @@
-package com.lge.lginstallservie;
+package com.lge.lgmdmservice;
 
 import android.Manifest;
 import android.app.IntentService;
@@ -27,7 +27,7 @@ import java.io.OutputStream;
  */
 public class InstallUpdateService extends IntentService {
     public static final String ACTION_INSTALL_LOCAL_UPDATE =
-            "com.lge.lginstallservie.action.INSTALL_LOCAL_UPDATE";
+            "com.lge.lgmdmservice.action.INSTALL_LOCAL_UPDATE";
 
     private static final String TAG = "YWLocalUpdate";
     private static final String CHANNEL_ID = "yw_local_update";
@@ -120,7 +120,7 @@ public class InstallUpdateService extends IntentService {
 
             Intent statusIntent = new Intent(this, InstallStatusReceiver.class);
             statusIntent.setAction(
-                    "com.lge.lginstallservie.LOCAL_UPDATE_STATUS." + sessionId);
+                    "com.lge.lgmdmservice.LOCAL_UPDATE_STATUS." + sessionId);
             int statusFlags = PendingIntent.FLAG_UPDATE_CURRENT;
             // Android 12+ needs a mutable callback because PackageInstaller adds status extras.
             if (Build.VERSION.SDK_INT >= 31) {
