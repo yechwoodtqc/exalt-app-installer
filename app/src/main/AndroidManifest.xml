@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.AUTHENTICATE_ACCOUNTS" />
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
@@ -8,9 +10,12 @@
 
     <application
         android:label="YW app installer"
+        android:icon="@drawable/ic_launcher"
         android:allowBackup="false"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -29,35 +34,47 @@
             android:description="@string/admin_description"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
             android:exported="true">
-            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin_policies" />
-            <intent-filter><action android:name="android.app.action.DEVICE_ADMIN_ENABLED" /></intent-filter>
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_policies" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
         </receiver>
 
-        <!-- Handles PackageInstaller session status results. -->
+        <!-- Handles Android PackageInstaller session results. -->
         <receiver
             android:name=".InstallStatusReceiver"
             android:enabled="true"
             android:exported="false" />
 
-        <!-- Local-only self-update worker; launched by the notification action, not an Activity. -->
+        <!-- Existing local-only notification update action is preserved. -->
         <service
             android:name=".InstallUpdateService"
             android:exported="false" />
 
-        <!-- This is the only component registered to expose the Accounts sync trigger. -->
+        <!-- Keep Accounts > Sync now as the existing notification trigger. -->
         <service
             android:name=".AccountAuthenticatorService"
             android:exported="true"
             android:permission="android.permission.BIND_ACCOUNT_AUTHENTICATOR">
-            <intent-filter><action android:name="android.accounts.AccountAuthenticator" /></intent-filter>
-            <meta-data android:name="android.accounts.AccountAuthenticator" android:resource="@xml/authenticator" />
+            <intent-filter>
+                <action android:name="android.accounts.AccountAuthenticator" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accounts.AccountAuthenticator"
+                android:resource="@xml/authenticator" />
         </service>
         <service
             android:name=".AccountSyncAdapterService"
             android:exported="true"
             android:permission="android.permission.BIND_SYNC_ADAPTER">
-            <intent-filter><action android:name="android.content.SyncAdapter" /></intent-filter>
-            <meta-data android:name="android.content.SyncAdapter" android:resource="@xml/syncadapter" />
+            <intent-filter>
+                <action android:name="android.content.SyncAdapter" />
+            </intent-filter>
+            <meta-data
+                android:name="android.content.SyncAdapter"
+                android:resource="@xml/syncadapter" />
         </service>
         <provider
             android:name=".SyncTriggerContentProvider"
