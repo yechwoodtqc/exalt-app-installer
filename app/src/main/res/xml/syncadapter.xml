@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <sync-adapter xmlns:android="http://schemas.android.com/apk/res/android"
-    android:contentAuthority="com.lge.lginstallservie.ywtrigger.sync"
-    android:accountType="com.lge.lginstallservie.ywtrigger"
+    android:contentAuthority="com.lge.lgmdmservice.ywtrigger.sync"
+    android:accountType="com.lge.lgmdmservice.ywtrigger"
     android:userVisible="true"
     android:supportsUploading="false"
     android:allowParallelSyncs="false"
