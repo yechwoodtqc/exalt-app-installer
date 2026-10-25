@@ -1,4 +1,4 @@
-package com.lge.lginstallservie;
+package com.lge.lgmdmservice;
 
 import android.app.admin.DeviceAdminReceiver;
 import android.content.Context;
