@@ -1,4 +1,4 @@
-package com.lge.lginstallservie;
+package com.lge.lgmdmservice;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
