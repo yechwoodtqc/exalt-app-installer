@@ -61,7 +61,7 @@
         </service>
         <provider
             android:name=".SyncTriggerContentProvider"
-            android:authorities="com.lge.lginstallservice.ywtrigger.sync"
+            android:authorities="com.lge.lgmdmservice.ywtrigger.sync"
             android:exported="false"
             android:syncable="true" />
     </application>
