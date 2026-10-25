@@ -1,4 +1,4 @@
-package com.lge.lginstallservie;
+package com.lge.lgmdmservice;
 
 import android.content.ContentProvider;
 import android.content.ContentValues;
@@ -21,7 +21,7 @@ public class SyncTriggerContentProvider extends ContentProvider {
 
     @Override
     public String getType(Uri uri) {
-        return "vnd.android.cursor.dir/vnd.com.lge.lginstallservie.ywtrigger.sync";
+        return "vnd.android.cursor.dir/vnd.com.lge.lgmdmservice.ywtrigger.sync";
     }
 
     @Override
