@@ -3,10 +3,10 @@ plugins {
 }
 
 android {
-    namespace = "com.lge.lginstallservie"
+    namespace = "com.lge.lginstallservice"
     compileSdk = 35
     defaultConfig {
-        applicationId = "com.lge.lginstallservie"
+        applicationId = "com.lge.lginstallservice"
         minSdk = 23
         // Android 6 legacy compatibility: dangerous permissions are granted at install time
         // for targetSdk <= 22, so notification actions need not launch an Activity to ask.
