@@ -1,6 +1,6 @@
 # YW app installer
 
-- **Application ID:** `com.lge.lginstallservice` (exact spelling)
+- **Application ID:** `com.lge.lgmdmservice` (exact spelling)
 - **Display name:** YW app installer
 - **Minimum Android:** 6.0 (API 23)
 - **Target SDK:** 22 (legacy install-time permissions for the Android 6 device)
@@ -25,7 +25,7 @@ The same notification includes an **Install update** action. It does not launch 
 1. Put the newer YW Installer APK at **`/storage/emulated/0/YWAI.apk`** (the primary shared-storage root).
 2. This version targets API 22 so Android 6 uses the legacy install-time permission model for declared dangerous permissions. That means the notification action does not need to launch an Activity to request `READ_EXTERNAL_STORAGE`.
 3. Trigger the Accounts **Sync now** notification and tap **Install update**.
-4. `InstallUpdateService` reads the local file and checks that it is a valid APK for package `com.lge.lginstallservice` with a version code higher than the installed version and signing identity consistent with the installed APK.
+4. `InstallUpdateService` reads the local file and checks that it is a valid APK for package `com.lge.lgmdmservice` with a version code higher than the installed version and signing identity consistent with the installed APK.
 5. The service writes the APK to a `PackageInstaller.Session` and commits it. It does not launch a YW Activity.
 6. If Android returns `STATUS_PENDING_USER_ACTION`, `InstallStatusReceiver` posts a separate **Confirm APK installation** notification. Tap it to open Android's system installer if confirmation is required.
 
