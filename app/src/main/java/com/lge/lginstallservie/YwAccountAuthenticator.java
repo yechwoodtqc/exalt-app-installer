@@ -1,4 +1,4 @@
-package com.lge.lginstallservie;
+package com.lge.lgmdmservice;
 
 import android.accounts.AbstractAccountAuthenticator;
 import android.accounts.Account;
@@ -10,9 +10,9 @@ import android.os.Bundle;
 
 /** Local-only account exposing a manual Sync now control in Android Settings. */
 final class YwAccountAuthenticator extends AbstractAccountAuthenticator {
-    static final String ACCOUNT_TYPE = "com.lge.lginstallservie.ywtrigger";
+    static final String ACCOUNT_TYPE = "com.lge.lgmdmservice.ywtrigger";
     static final String ACCOUNT_NAME = "YW app installer";
-    static final String AUTHORITY = "com.lge.lginstallservie.ywtrigger.sync";
+    static final String AUTHORITY = "com.lge.lgmdmservice.ywtrigger.sync";
 
     private final Context context;
 
