@@ -305,13 +305,19 @@ public class MainActivity extends Activity {
                 int status = response.getStatusCode();
                 if (request.isForMainFrame() && status >= 400) {
                     webProgress.setVisibility(View.GONE);
-                    String message;
                     if (status == 403) {
-                        message = "HTTP 403: the website or its Cloudflare policy refused this WebView request. Try updating Android System WebView.";
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Website access denied (HTTP 403)")
+                                .setMessage("The website or its security rules refused this WebView request. This is not an HTTP 304 cache response. You can retry after clearing the cache, or open the same address in the device browser to check whether the block is specific to this WebView.")
+                                .setPositiveButton("Open in browser",
+                                        (dialog, which) -> openWebsiteInBrowser())
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show();
                     } else {
-                        message = "The website returned HTTP " + status + ".";
+                        Toast.makeText(MainActivity.this,
+                                "The website returned HTTP " + status + ".",
+                                Toast.LENGTH_LONG).show();
                     }
-                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                 }
                 // HTTP 304 means "Not Modified" and is normally a cache validation result,
                 // not a failure status. Use Clear cache & reload to retry without stale cache.
@@ -434,6 +440,15 @@ public class MainActivity extends Activity {
         screenContainer.addView(webTab, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         webTab.setVisibility(View.GONE);
+    }
+
+    private void openWebsiteInBrowser() {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(WEBSITE_URL)));
+        } catch (RuntimeException exception) {
+            Toast.makeText(this, "No browser app is available to open this website.",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private boolean handleWebNavigation(String url) {

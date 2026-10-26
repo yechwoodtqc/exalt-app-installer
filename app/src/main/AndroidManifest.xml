@@ -48,6 +48,11 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- Manual Accounts notification local-update action. -->
+        <service
+            android:name=".InstallUpdateService"
+            android:exported="false" />
+
         <!-- Keep Accounts > Sync now as the existing notification trigger. -->
         <service
             android:name=".AccountAuthenticatorService"
