@@ -284,6 +284,8 @@ public class MainActivity extends Activity {
                 webProgress.setProgress(100);
                 webProgress.setVisibility(View.GONE);
                 CookieManager.getInstance().flush();
+                // The explicit no-cache reload is one-shot; resume normal browser caching.
+                webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
             }
 
             @Override
@@ -300,12 +302,19 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request,
                     android.webkit.WebResourceResponse response) {
-                if (request.isForMainFrame() && response.getStatusCode() >= 400) {
+                int status = response.getStatusCode();
+                if (request.isForMainFrame() && status >= 400) {
                     webProgress.setVisibility(View.GONE);
-                    Toast.makeText(MainActivity.this,
-                            "The website returned HTTP " + response.getStatusCode() + ".",
-                            Toast.LENGTH_LONG).show();
+                    String message;
+                    if (status == 403) {
+                        message = "HTTP 403: the website or its Cloudflare policy refused this WebView request. Try updating Android System WebView.";
+                    } else {
+                        message = "The website returned HTTP " + status + ".";
+                    }
+                    Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
                 }
+                // HTTP 304 means "Not Modified" and is normally a cache validation result,
+                // not a failure status. Use Clear cache & reload to retry without stale cache.
             }
 
             @Override
@@ -406,11 +415,16 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(3), Gravity.TOP);
         browserFrame.addView(webProgress, progressParams);
 
-        Button reloadButton = createTabButton("Reload website");
+        Button reloadButton = createTabButton("Clear cache & reload");
         reloadButton.setTextColor(COLOR_TEXT);
         reloadButton.setBackground(rounded(COLOR_PANEL_LIGHT, 12, COLOR_PANEL_LIGHT, 1));
         reloadButton.setOnClickListener(v -> {
-            if (webView != null) webView.reload();
+            if (webView != null) {
+                // Clear cached page/resources, but keep Cloudflare cookies and site storage.
+                webView.clearCache(true);
+                webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+                webView.loadUrl(WEBSITE_URL);
+            }
         });
         LinearLayout.LayoutParams reloadParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(44));

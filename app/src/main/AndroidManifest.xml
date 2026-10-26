@@ -48,11 +48,6 @@
             android:enabled="true"
             android:exported="false" />
 
-        <!-- Existing local-only notification update action is preserved. -->
-        <service
-            android:name=".InstallUpdateService"
-            android:exported="false" />
-
         <!-- Keep Accounts > Sync now as the existing notification trigger. -->
         <service
             android:name=".AccountAuthenticatorService"

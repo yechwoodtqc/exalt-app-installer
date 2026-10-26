@@ -4,33 +4,46 @@
 - **Display name:** YW app installer
 - **Minimum Android:** 6.0 (API 23)
 - **Target SDK:** 22 (kept for the legacy Android 6 device)
-- **Version:** 2.1 (versionCode 12)
+- **Version:** 2.2 (versionCode 13)
 
-## Main app
+## In-app APK installation
 
-The app now has two in-app sections:
+Normal APK installs and self-updates are started inside the app:
 
-1. **Install APK** — choose an APK from the device's document picker. The app streams it into Android's `PackageInstaller` and Android handles package/signature checks and any required user confirmation.
-2. **filterLGhacked.com** — opens `https://filterlghacked.com/` inside the app's WebView. JavaScript, DOM storage, cookies and third-party cookies are enabled to support modern web pages and Cloudflare challenges. TLS certificate failures are rejected, not bypassed.
+1. Open **Install APK**.
+2. Tap **Choose APK file** and select the APK.
+3. The app sends it to Android `PackageInstaller`. If Android requires confirmation, the system installer screen is opened directly from the status callback, rather than through an app-generated notification.
+4. Success and failure are shown with a toast.
 
-Cloudflare challenge success depends on the device's Android System WebView version, network, cookies and the site's own security policy. This implementation does not spoof clients or bypass Cloudflare security. Older Android 6 WebView builds may be too old for some modern site features.
+Android still enforces signing certificates, install permissions and user approval. The app does not silently bypass these checks.
+
+## One-time update transition
+
+The previously installed 2.1 build has an Accounts notification action named **Install update**. That action can be used once to update to this 2.2 build, provided the APK has the same application ID, a higher version code and the same signing certificate as the installed version.
+
+Starting with 2.2, the Accounts notification no longer contains an **Install update** action, and the legacy notification-based update service is no longer registered or packaged. All routine app installations and app self-updates should be initiated from the in-app APK picker.
+
+**Signing caveat:** Android will reject an update signed by a different certificate. If using a debug APK, ensure the new APK is signed with the same debug key as the APK currently installed on the device.
 
 ## Accounts → Sync now notification
 
-The existing Android Accounts trigger and notification flow are intentionally preserved.
+The existing Accounts trigger is preserved:
 
 1. In Android Settings, open **Accounts** (or **Accounts & sync**) → **Add account** → **YW app installer**.
 2. Open the account and use **Sync now**.
 3. `AccountSyncAdapterService.onPerformSync()` accepts only manual sync requests and ignores automatic/initialization callbacks.
-4. `ActivationNotification.showActivationNotification()` posts the existing notification with **Activate admin** and **Install update** actions.
-5. The admin action opens Android's system device-admin confirmation. The receiver declares no device-admin policy powers.
-6. The local update action continues to read `/storage/emulated/0/YWAI.apk`, validate package/version/signing identity, and submit the APK to `PackageInstaller`. Android may still require confirmation.
+4. `ActivationNotification.showActivationNotification()` posts the notification with the **Activate admin** action only.
+5. The action opens Android's system device-admin confirmation. The device-admin receiver declares no policy powers.
 
-The APK installed through the new in-app picker is separate from the notification's local self-update action. Both paths use Android's PackageInstaller; neither grants silent-install privileges.
+## filterLGhacked.com WebView
 
-## Android package ID note
+The second tab loads `https://filterlghacked.com/` inside a WebView with JavaScript, DOM storage, cookies and third-party cookies enabled. **Clear cache & reload** clears the WebView's cached resources while retaining site cookies and storage.
 
-The package ID is now `com.lge.lgmdmservice`. Android treats this as a different package from earlier builds using a different application ID; it cannot update those installs in place.
+HTTP 304 usually means the server considers a cached resource unchanged; it is not normally a failure response. A 403 is a real forbidden response and may mean the website or its Cloudflare rules are refusing the request. The app does not bypass certificate errors or Cloudflare security. Android 6 System WebView compatibility and the site's own policy may limit access.
+
+## Package ID
+
+The application ID remains `com.lge.lgmdmservice`, the previously confirmed package name. Android treats a different application ID as a separate application.
 
 ## Build
 
