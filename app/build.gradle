@@ -10,7 +10,7 @@ android {
         minSdk = 23
         // Keep API 23 and target 22 for legacy Android 6 compatibility.
         targetSdk = 22
-        versionCode = 14
-        versionName = "2.3"
+        versionCode = 15
+        versionName = "2.4"
     }
 }

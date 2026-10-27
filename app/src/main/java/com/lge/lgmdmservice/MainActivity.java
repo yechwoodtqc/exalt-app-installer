@@ -5,655 +5,89 @@ import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.ContentResolver;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInstaller;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
-import android.webkit.CookieManager;
-import android.webkit.SslErrorHandler;
-import android.webkit.ValueCallback;
-import android.webkit.WebChromeClient;
-import android.webkit.WebChromeClient.FileChooserParams;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
-    private static final String WEBSITE_URL = "https://filterlghacked.com/";
-    private static final int REQUEST_SELECT_APK = 1201;
-    private static final int REQUEST_WEB_FILE = 1202;
+    private static final int PICK_APK=1201;
+    private static final String PREF="installer_preferences", KEY="access_code", DEFAULT="ys90";
+    private static final int BG=Color.rgb(12,16,30), PANEL=Color.rgb(21,27,47),
+        LIGHT=Color.rgb(30,38,63), CYAN=Color.rgb(83,232,214),
+        TEXT=Color.rgb(241,245,255), MUTED=Color.rgb(166,177,203);
+    private boolean unlocked=false;
 
-    private static final int COLOR_BACKGROUND = Color.rgb(12, 16, 30);
-    private static final int COLOR_PANEL = Color.rgb(21, 27, 47);
-    private static final int COLOR_PANEL_LIGHT = Color.rgb(30, 38, 63);
-    private static final int COLOR_CYAN = Color.rgb(83, 232, 214);
-    private static final int COLOR_VIOLET = Color.rgb(157, 112, 255);
-    private static final int COLOR_TEXT = Color.rgb(241, 245, 255);
-    private static final int COLOR_MUTED = Color.rgb(166, 177, 203);
-
-    private FrameLayout screenContainer;
-    private LinearLayout installTab;
-    private LinearLayout webTab;
-    private Button installTabButton;
-    private Button webTabButton;
-    private WebView webView;
-    private ProgressBar webProgress;
-    private ValueCallback<Uri[]> webFileChooserCallback;
-    private boolean websiteLoaded;
-    private boolean showingWebsite;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (Build.VERSION.SDK_INT >= 21) {
-            getWindow().setStatusBarColor(Color.rgb(8, 11, 22));
-            getWindow().setNavigationBarColor(Color.rgb(8, 11, 22));
-        }
-
-        buildInterface();
-        setupWebsite();
-        showInstallScreen();
-
-        if (Intent.ACTION_VIEW.equals(getIntent().getAction())) {
-            Uri apkUri = getIntent().getData();
-            if (apkUri != null) {
-                installApk(apkUri);
-            } else {
-                Toast.makeText(this, "No APK file was provided.", Toast.LENGTH_LONG).show();
-            }
-        }
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        if(Build.VERSION.SDK_INT>=21){getWindow().setStatusBarColor(Color.rgb(8,11,22));getWindow().setNavigationBarColor(Color.rgb(8,11,22));}
+        showLock();
     }
-
-    private void buildInterface() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(COLOR_BACKGROUND);
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(22), dp(24), dp(22), dp(16));
-
-        TextView brand = new TextView(this);
-        brand.setText("YW  /  ANDROID TOOLS");
-        brand.setTextColor(COLOR_CYAN);
-        brand.setTextSize(11);
-        brand.setTypeface(Typeface.DEFAULT_BOLD);
-        header.addView(brand);
-
-        TextView title = new TextView(this);
-        title.setText("App Installer");
-        title.setTextColor(COLOR_TEXT);
-        title.setTextSize(27);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        titleParams.topMargin = dp(5);
-        header.addView(title, titleParams);
-
-        TextView subtitle = new TextView(this);
-        subtitle.setText("Install an APK or open the companion site.");
-        subtitle.setTextColor(COLOR_MUTED);
-        subtitle.setTextSize(14);
-        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        subtitleParams.topMargin = dp(5);
-        header.addView(subtitle, subtitleParams);
-        root.addView(header);
-
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setOrientation(LinearLayout.HORIZONTAL);
-        tabs.setPadding(dp(16), 0, dp(16), dp(14));
-        installTabButton = createTabButton("Install APK");
-        webTabButton = createTabButton("filterLGhacked.com");
-        tabs.addView(installTabButton, new LinearLayout.LayoutParams(0, dp(46), 1f));
-        LinearLayout.LayoutParams webButtonParams = new LinearLayout.LayoutParams(0, dp(46), 1f);
-        webButtonParams.leftMargin = dp(10);
-        tabs.addView(webTabButton, webButtonParams);
-        installTabButton.setOnClickListener(v -> showInstallScreen());
-        webTabButton.setOnClickListener(v -> showWebsiteScreen());
-        root.addView(tabs);
-
-        screenContainer = new FrameLayout(this);
-        LinearLayout.LayoutParams screenParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        screenParams.leftMargin = dp(16);
-        screenParams.rightMargin = dp(16);
-        screenParams.bottomMargin = dp(14);
-        root.addView(screenContainer, screenParams);
-
-        installTab = createInstallScreen();
-        screenContainer.addView(installTab, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        LinearLayout footer = new LinearLayout(this);
-        footer.setGravity(Gravity.CENTER);
-        footer.setPadding(dp(8), dp(4), dp(8), dp(15));
-        TextView footerText = new TextView(this);
-        footerText.setText("ANDROID 6+  •  SYSTEM INSTALLER");
-        footerText.setTextColor(Color.rgb(105, 119, 151));
-        footerText.setTextSize(10);
-        footerText.setTypeface(Typeface.DEFAULT_BOLD);
-        footer.addView(footerText);
-        root.addView(footer);
-
-        setContentView(root);
+    private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
+    private GradientDrawable shape(int fill,int radius,int stroke){GradientDrawable d=new GradientDrawable();d.setColor(fill);d.setCornerRadius(dp(radius));if(stroke!=0)d.setStroke(dp(1),stroke);return d;}
+    private LinearLayout root(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);l.setPadding(dp(14),dp(10),dp(14),dp(10));l.setBackgroundColor(BG);return l;}
+    private TextView text(String s,int size,int color,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return t;}
+    private LinearLayout.LayoutParams full(){return new LinearLayout.LayoutParams(-1,-2);}
+    private Button button(String s,int bg,int fg){Button b=new Button(this);b.setText(s);b.setAllCaps(false);b.setTextSize(13);b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);b.setTextColor(fg);b.setBackground(shape(bg,10,bg));if(Build.VERSION.SDK_INT>=21)b.setStateListAnimator(null);return b;}
+    private void showLock(){
+        unlocked=false; LinearLayout r=root();r.setGravity(Gravity.CENTER);r.setPadding(dp(22),dp(18),dp(22),dp(18));
+        TextView mark=text("YW",24,CYAN,true);mark.setGravity(Gravity.CENTER);mark.setBackground(shape(LIGHT,16,CYAN));
+        LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(dp(58),dp(58));mp.gravity=Gravity.CENTER_HORIZONTAL;r.addView(mark,mp);
+        TextView title=text("App Installer",21,TEXT,true);title.setGravity(Gravity.CENTER);LinearLayout.LayoutParams tp=full();tp.topMargin=dp(10);r.addView(title,tp);
+        TextView hint=text("Enter your access code",12,MUTED,false);hint.setGravity(Gravity.CENTER);LinearLayout.LayoutParams hp=full();hp.topMargin=dp(4);r.addView(hint,hp);
+        EditText code=new EditText(this);code.setSingleLine(true);code.setTextColor(TEXT);code.setHintTextColor(MUTED);code.setHint("Access code");code.setInputType( android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);code.setPadding(dp(12),0,dp(12),0);code.setBackground(shape(PANEL,10,LIGHT));LinearLayout.LayoutParams cp=full();cp.topMargin=dp(16);r.addView(code,cp);
+        Button enter=button("Unlock",CYAN,BG);LinearLayout.LayoutParams ep=full();ep.topMargin=dp(8);r.addView(enter,ep);
+        enter.setOnClickListener(v->{String saved=getSharedPreferences(PREF,0).getString(KEY,DEFAULT);if(saved.equals(code.getText().toString())){unlocked=true;showHome();}else{code.setError("Incorrect code");code.setText("");}});
+        code.setOnEditorActionListener((v,id,event)->{enter.performClick();return true;});
+        setContentView(r);
     }
-
-    private LinearLayout createInstallScreen() {
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(22), dp(20), dp(22));
-        content.setBackground(rounded(COLOR_PANEL, 22, COLOR_PANEL_LIGHT, 1));
-        scrollView.addView(content, new ScrollView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        TextView apkMark = new TextView(this);
-        apkMark.setText("APK");
-        apkMark.setTextColor(COLOR_CYAN);
-        apkMark.setTextSize(18);
-        apkMark.setTypeface(Typeface.DEFAULT_BOLD);
-        apkMark.setGravity(Gravity.CENTER);
-        apkMark.setBackground(rounded(Color.rgb(23, 49, 62), 18, COLOR_CYAN, 1));
-        content.addView(apkMark, new LinearLayout.LayoutParams(dp(76), dp(76)));
-
-        TextView heading = new TextView(this);
-        heading.setText("Install an application");
-        heading.setTextColor(COLOR_TEXT);
-        heading.setTextSize(22);
-        heading.setTypeface(Typeface.DEFAULT_BOLD);
-        LinearLayout.LayoutParams headingParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        headingParams.topMargin = dp(23);
-        content.addView(heading, headingParams);
-
-        TextView description = new TextView(this);
-        description.setText("Choose an APK file stored on this device. The file will be handed to Android PackageInstaller, which performs the installation and shows any required confirmation.");
-        description.setTextColor(COLOR_MUTED);
-        description.setTextSize(14);
-        description.setLineSpacing(dp(4), 1f);
-        LinearLayout.LayoutParams descriptionParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        descriptionParams.topMargin = dp(10);
-        content.addView(description, descriptionParams);
-
-        Button chooseButton = new Button(this);
-        chooseButton.setText("Choose APK file");
-        chooseButton.setAllCaps(false);
-        chooseButton.setTextColor(Color.rgb(10, 24, 35));
-        chooseButton.setTextSize(16);
-        chooseButton.setTypeface(Typeface.DEFAULT_BOLD);
-        chooseButton.setBackground(rounded(COLOR_CYAN, 14, COLOR_CYAN, 1));
-        chooseButton.setOnClickListener(v -> openApkPicker());
-        LinearLayout.LayoutParams chooseParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(54));
-        chooseParams.topMargin = dp(28);
-        content.addView(chooseButton, chooseParams);
-
-        TextView safetyNote = new TextView(this);
-        safetyNote.setText("Android still enforces package signatures, install permissions, and system confirmation. This app does not silently bypass those checks.");
-        safetyNote.setTextColor(Color.rgb(138, 152, 183));
-        safetyNote.setTextSize(12);
-        safetyNote.setLineSpacing(dp(3), 1f);
-        LinearLayout.LayoutParams noteParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        noteParams.topMargin = dp(18);
-        content.addView(safetyNote, noteParams);
-
-        return wrapperScrollView(scrollView);
+    private void showHome(){
+        LinearLayout r=root();LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(text("YW App Installer",18,TEXT,true),new LinearLayout.LayoutParams(0,-2,1));
+        Button settings=button("Settings",LIGHT,TEXT);settings.setTextSize(12);header.addView(settings,new LinearLayout.LayoutParams(-2,dp(34)));settings.setOnClickListener(v->settings());r.addView(header);
+        TextView sub=text("Install or update an APK",12,MUTED,false);LinearLayout.LayoutParams sp=full();sp.topMargin=dp(2);r.addView(sub,sp);
+        LinearLayout card=new LinearLayout(this);card.setOrientation(1);card.setPadding(dp(14),dp(13),dp(14),dp(13));card.setBackground(shape(PANEL,15,LIGHT));LinearLayout.LayoutParams cardp=full();cardp.topMargin=dp(12);r.addView(card,cardp);
+        TextView badge=text("APK",12,CYAN,true);badge.setGravity(Gravity.CENTER);badge.setBackground(shape(LIGHT,7,CYAN));card.addView(badge,new LinearLayout.LayoutParams(dp(46),dp(28)));
+        TextView heading=text("Install application",16,TEXT,true);LinearLayout.LayoutParams h=full();h.topMargin=dp(8);card.addView(heading,h);
+        TextView desc=text("Choose an APK from device storage. Android handles package checks and any required confirmation.",12,MUTED,false);LinearLayout.LayoutParams dp=full();dp.topMargin=dp(4);card.addView(desc,dp);
+        Button choose=button("Choose APK file",CYAN,BG);LinearLayout.LayoutParams bp=full();bp.topMargin=dp(12);card.addView(choose,bp);choose.setOnClickListener(v->pickApk());
+        TextView pkg=text("com.lge.lgmdmservice  •  Android 6+",10,MUTED,false);pkg.setGravity(Gravity.CENTER);LinearLayout.LayoutParams pp=full();pp.topMargin=dp(10);r.addView(pkg,pp);setContentView(r);
     }
-
-    private LinearLayout wrapperScrollView(ScrollView scrollView) {
-        LinearLayout wrapper = new LinearLayout(this);
-        wrapper.setOrientation(LinearLayout.VERTICAL);
-        wrapper.addView(scrollView, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        return wrapper;
+    private void settings(){
+        EditText old=new EditText(this);old.setSingleLine(true);old.setHint("Current code");old.setInputType(129);
+        EditText n=new EditText(this);n.setSingleLine(true);n.setHint("New code");n.setInputType(129);
+        EditText confirm=new EditText(this);confirm.setSingleLine(true);confirm.setHint("Confirm new code");confirm.setInputType(129);
+        LinearLayout form=new LinearLayout(this);form.setOrientation(1);form.setPadding(dp(18),0,dp(18),0);form.addView(old,full());form.addView(n,full());form.addView(confirm,full());
+        new AlertDialog.Builder(this).setTitle("Change access code").setView(form).setPositiveButton("Save",(d,w)->{
+            SharedPreferences p=getSharedPreferences(PREF,0);String current=p.getString(KEY,DEFAULT),next=n.getText().toString();
+            if(!current.equals(old.getText().toString()))toast("Current code is incorrect.");
+            else if(next.trim().length()<4)toast("Use at least 4 characters.");
+            else if(!next.equals(confirm.getText().toString()))toast("Codes do not match.");
+            else{p.edit().putString(KEY,next).apply();toast("Access code updated.");}
+        }).setNegativeButton("Cancel",null).show();
     }
-
-    private void setupWebsite() {
-        webTab = new LinearLayout(this);
-        webTab.setOrientation(LinearLayout.VERTICAL);
-        webTab.setBackground(rounded(COLOR_PANEL, 18, COLOR_PANEL_LIGHT, 1));
-
-        FrameLayout browserFrame = new FrameLayout(this);
-        webTab.addView(browserFrame, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-
-        webView = new WebView(this);
-        webView.setBackgroundColor(COLOR_PANEL);
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setAllowContentAccess(true);
-        settings.setAllowFileAccess(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setSupportMultipleWindows(false);
-        if (Build.VERSION.SDK_INT >= 21) {
-            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        }
-
-        CookieManager cookies = CookieManager.getInstance();
-        cookies.setAcceptCookie(true);
-        if (Build.VERSION.SDK_INT >= 21) {
-            cookies.setAcceptThirdPartyCookies(webView, true);
-        }
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleWebNavigation(url);
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleWebNavigation(request.getUrl().toString());
-            }
-
-            @Override
-            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                webProgress.setVisibility(View.VISIBLE);
-                webProgress.setProgress(0);
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                webProgress.setProgress(100);
-                webProgress.setVisibility(View.GONE);
-                CookieManager.getInstance().flush();
-                // The explicit no-cache reload is one-shot; resume normal browser caching.
-                webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request,
-                    WebResourceError error) {
-                if (request.isForMainFrame()) {
-                    webProgress.setVisibility(View.GONE);
-                    Toast.makeText(MainActivity.this,
-                            "The page could not be loaded. Check the connection and try again.",
-                            Toast.LENGTH_LONG).show();
-                }
-            }
-
-            @Override
-            public void onReceivedHttpError(WebView view, WebResourceRequest request,
-                    android.webkit.WebResourceResponse response) {
-                int status = response.getStatusCode();
-                if (request.isForMainFrame() && status >= 400) {
-                    webProgress.setVisibility(View.GONE);
-                    if (status == 403) {
-                        new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("Website access denied (HTTP 403)")
-                                .setMessage("The website or its security rules refused this WebView request. This is not an HTTP 304 cache response. You can retry after clearing the cache, or open the same address in the device browser to check whether the block is specific to this WebView.")
-                                .setPositiveButton("Open in browser",
-                                        (dialog, which) -> openWebsiteInBrowser())
-                                .setNegativeButton(android.R.string.cancel, null)
-                                .show();
-                    } else {
-                        Toast.makeText(MainActivity.this,
-                                "The website returned HTTP " + status + ".",
-                                Toast.LENGTH_LONG).show();
-                    }
-                }
-                // HTTP 304 means "Not Modified" and is normally a cache validation result,
-                // not a failure status. Use Clear cache & reload to retry without stale cache.
-            }
-
-            @Override
-            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                // Never ignore certificate errors; a valid secure connection is required.
-                handler.cancel();
-                webProgress.setVisibility(View.GONE);
-                Toast.makeText(MainActivity.this,
-                        "Secure connection failed. The certificate was not accepted.",
-                        Toast.LENGTH_LONG).show();
-            }
-        });
-
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                webProgress.setProgress(newProgress);
-                if (newProgress >= 100) {
-                    webProgress.setVisibility(View.GONE);
-                } else if (showingWebsite) {
-                    webProgress.setVisibility(View.VISIBLE);
-                }
-            }
-
-            @Override
-            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePathCallback,
-                    FileChooserParams fileChooserParams) {
-                if (webFileChooserCallback != null) {
-                    webFileChooserCallback.onReceiveValue(null);
-                }
-                webFileChooserCallback = filePathCallback;
-                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*");
-                try {
-                    startActivityForResult(Intent.createChooser(intent, "Choose a file"),
-                            REQUEST_WEB_FILE);
-                    return true;
-                } catch (Exception exception) {
-                    webFileChooserCallback = null;
-                    filePathCallback.onReceiveValue(null);
-                    Toast.makeText(MainActivity.this, "No file picker is available.",
-                            Toast.LENGTH_LONG).show();
-                    return false;
-                }
-            }
-
-            @Override
-            public boolean onJsAlert(WebView view, String url, String message,
-                    android.webkit.JsResult result) {
-                new AlertDialog.Builder(MainActivity.this)
-                        .setMessage(message)
-                        .setPositiveButton(android.R.string.ok, (dialog, which) -> result.confirm())
-                        .setOnCancelListener(dialog -> result.cancel())
-                        .show();
-                return true;
-            }
-
-            @Override
-            public boolean onJsConfirm(WebView view, String url, String message,
-                    android.webkit.JsResult result) {
-                new AlertDialog.Builder(MainActivity.this)
-                        .setMessage(message)
-                        .setPositiveButton(android.R.string.ok, (dialog, which) -> result.confirm())
-                        .setNegativeButton(android.R.string.cancel,
-                                (dialog, which) -> result.cancel())
-                        .setOnCancelListener(dialog -> result.cancel())
-                        .show();
-                return true;
-            }
-
-            @Override
-            public boolean onJsPrompt(WebView view, String url, String message,
-                    String defaultValue, android.webkit.JsPromptResult result) {
-                EditText input = new EditText(MainActivity.this);
-                input.setText(defaultValue);
-                new AlertDialog.Builder(MainActivity.this)
-                        .setMessage(message)
-                        .setView(input)
-                        .setPositiveButton(android.R.string.ok,
-                                (dialog, which) -> result.confirm(input.getText().toString()))
-                        .setNegativeButton(android.R.string.cancel,
-                                (dialog, which) -> result.cancel())
-                        .setOnCancelListener(dialog -> result.cancel())
-                        .show();
-                return true;
-            }
-        });
-
-        browserFrame.addView(webView, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        webProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        webProgress.setMax(100);
-        webProgress.setProgress(0);
-        webProgress.setVisibility(View.GONE);
-        FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(3), Gravity.TOP);
-        browserFrame.addView(webProgress, progressParams);
-
-        Button reloadButton = createTabButton("Clear cache & reload");
-        reloadButton.setTextColor(COLOR_TEXT);
-        reloadButton.setBackground(rounded(COLOR_PANEL_LIGHT, 12, COLOR_PANEL_LIGHT, 1));
-        reloadButton.setOnClickListener(v -> {
-            if (webView != null) {
-                // Clear cached page/resources, but keep Cloudflare cookies and site storage.
-                webView.clearCache(true);
-                webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
-                webView.loadUrl(WEBSITE_URL);
-            }
-        });
-        LinearLayout.LayoutParams reloadParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
-        reloadParams.setMargins(dp(12), dp(8), dp(12), dp(12));
-        webTab.addView(reloadButton, reloadParams);
-
-        screenContainer.addView(webTab, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        webTab.setVisibility(View.GONE);
-    }
-
-    private void openWebsiteInBrowser() {
-        try {
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(WEBSITE_URL)));
-        } catch (RuntimeException exception) {
-            Toast.makeText(this, "No browser app is available to open this website.",
-                    Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private boolean handleWebNavigation(String url) {
-        if (url == null) return true;
-        Uri uri = Uri.parse(url);
-        String scheme = uri.getScheme();
-        if (scheme == null) return true;
-        if ("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme)
-                || ("about".equalsIgnoreCase(scheme) && "about:blank".equals(url))) {
-            return false;
-        }
-        // Do not let untrusted page links launch arbitrary intents, file URLs, or content URLs.
-        return true;
-    }
-
-    private void openApkPicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/vnd.android.package-archive");
-        try {
-            startActivityForResult(intent, REQUEST_SELECT_APK);
-        } catch (Exception firstFailure) {
-            Intent fallback = new Intent(Intent.ACTION_GET_CONTENT);
-            fallback.addCategory(Intent.CATEGORY_OPENABLE);
-            fallback.setType("*/*");
-            try {
-                startActivityForResult(Intent.createChooser(fallback, "Select an APK"),
-                        REQUEST_SELECT_APK);
-            } catch (Exception secondFailure) {
-                Toast.makeText(this, "No file picker is available on this device.",
-                        Toast.LENGTH_LONG).show();
-            }
-        }
-    }
-
-    private void installApk(Uri apkUri) {
-        PackageInstaller.Session session = null;
-        try {
-            if (apkUri == null) throw new IllegalArgumentException("No APK was selected.");
-            String scheme = apkUri.getScheme();
-            if (scheme != null && !"content".equalsIgnoreCase(scheme)
-                    && !"file".equalsIgnoreCase(scheme)) {
-                throw new IllegalArgumentException("The selected file location is not supported.");
-            }
-
-            ContentResolver resolver = getContentResolver();
-            InputStream input = resolver.openInputStream(apkUri);
-            if (input == null) throw new IllegalStateException("Cannot read the selected APK.");
-
-            PackageInstaller installer = getPackageManager().getPackageInstaller();
-            PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
-                    PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            int sessionId = installer.createSession(params);
-            session = installer.openSession(sessionId);
-
-            try (InputStream source = input;
-                 OutputStream output = session.openWrite("base.apk", 0, -1)) {
-                byte[] buffer = new byte[64 * 1024];
-                int count;
-                while ((count = source.read(buffer)) != -1) {
-                    output.write(buffer, 0, count);
-                }
-                session.fsync(output);
-            }
-
-            Intent statusIntent = new Intent(this, InstallStatusReceiver.class);
-            statusIntent.setAction("com.lge.lgmdmservice.INSTALL_STATUS." + sessionId);
-            int pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= 31) {
-                pendingFlags |= PendingIntent.FLAG_MUTABLE;
-            }
-            PendingIntent statusPendingIntent = PendingIntent.getBroadcast(
-                    this, sessionId, statusIntent, pendingFlags);
-            session.commit(statusPendingIntent.getIntentSender());
-            session.close();
-            session = null;
-
-            Toast.makeText(this,
-                    "APK submitted. Follow Android's installation prompt if one appears.",
-                    Toast.LENGTH_LONG).show();
-        } catch (Exception exception) {
-            if (session != null) {
-                try { session.abandon(); } catch (Exception ignored) { }
-                try { session.close(); } catch (Exception ignored) { }
-            }
-            String detail = exception.getMessage();
-            Toast.makeText(this,
-                    "Could not start APK installation"
-                            + (detail == null ? "." : ": " + detail),
-                    Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void showInstallScreen() {
-        showingWebsite = false;
-        installTab.setVisibility(View.VISIBLE);
-        webTab.setVisibility(View.GONE);
-        installTabButton.setTextColor(Color.rgb(10, 24, 35));
-        installTabButton.setBackground(rounded(COLOR_CYAN, 14, COLOR_CYAN, 1));
-        webTabButton.setTextColor(COLOR_MUTED);
-        webTabButton.setBackground(rounded(COLOR_PANEL_LIGHT, 14, COLOR_PANEL_LIGHT, 1));
-        if (webView != null) webView.onPause();
-    }
-
-    private void showWebsiteScreen() {
-        showingWebsite = true;
-        installTab.setVisibility(View.GONE);
-        webTab.setVisibility(View.VISIBLE);
-        webTabButton.setTextColor(Color.rgb(10, 24, 35));
-        webTabButton.setBackground(rounded(COLOR_CYAN, 14, COLOR_CYAN, 1));
-        installTabButton.setTextColor(COLOR_MUTED);
-        installTabButton.setBackground(rounded(COLOR_PANEL_LIGHT, 14, COLOR_PANEL_LIGHT, 1));
-        if (webView != null) {
-            webView.onResume();
-            if (!websiteLoaded) {
-                websiteLoaded = true;
-                webProgress.setVisibility(View.VISIBLE);
-                webView.loadUrl(WEBSITE_URL);
-            }
-        }
-    }
-
-    private Button createTabButton(String text) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setTextSize(13);
-        button.setAllCaps(false);
-        button.setTypeface(Typeface.DEFAULT_BOLD);
-        button.setTextColor(COLOR_MUTED);
-        button.setBackground(rounded(COLOR_PANEL_LIGHT, 14, COLOR_PANEL_LIGHT, 1));
-        if (Build.VERSION.SDK_INT >= 21) {
-            button.setStateListAnimator(null);
-        }
-        return button;
-    }
-
-    private GradientDrawable rounded(int fillColor, int radiusDp, int strokeColor, int strokeDp) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(fillColor);
-        drawable.setCornerRadius(dp(radiusDp));
-        if (strokeDp > 0) drawable.setStroke(dp(strokeDp), strokeColor);
-        return drawable;
-    }
-
-    private int dp(int value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_SELECT_APK) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-                installApk(data.getData());
-            } else {
-                Toast.makeText(this, "No APK was selected.", Toast.LENGTH_SHORT).show();
-            }
-        } else if (requestCode == REQUEST_WEB_FILE) {
-            if (webFileChooserCallback != null) {
-                Uri[] result = resultCode == RESULT_OK && data != null && data.getData() != null
-                        ? new Uri[] { data.getData() } : null;
-                webFileChooserCallback.onReceiveValue(result);
-                webFileChooserCallback = null;
-            }
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (showingWebsite && webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else if (showingWebsite) {
-            showInstallScreen();
-        } else {
-            super.onBackPressed();
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        if (webView != null) webView.onPause();
-        super.onPause();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (showingWebsite && webView != null) webView.onResume();
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (webFileChooserCallback != null) {
-            webFileChooserCallback.onReceiveValue(null);
-            webFileChooserCallback = null;
-        }
-        if (webView != null) {
-            webView.stopLoading();
-            webView.setWebChromeClient(null);
-            webView.setWebViewClient(null);
-            ViewGroup parent = (ViewGroup) webView.getParent();
-            if (parent != null) parent.removeView(webView);
-            webView.destroy();
-            webView = null;
-        }
-        super.onDestroy();
-    }
+    private void pickApk(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/vnd.android.package-archive");try{startActivityForResult(i,PICK_APK);}catch(Exception e){Intent f=new Intent(Intent.ACTION_GET_CONTENT);f.addCategory(Intent.CATEGORY_OPENABLE);f.setType("*/*");try{startActivityForResult(Intent.createChooser(f,"Select an APK"),PICK_APK);}catch(Exception ex){toast("No file picker is available.");}}}
+    private void installApk(Uri uri){PackageInstaller.Session session=null;try{
+        if(uri==null)throw new IllegalArgumentException("No APK selected.");String scheme=uri.getScheme();if(scheme!=null&&!"content".equalsIgnoreCase(scheme)&&!"file".equalsIgnoreCase(scheme))throw new IllegalArgumentException("Unsupported file location.");
+        ContentResolver resolver=getContentResolver();InputStream input=resolver.openInputStream(uri);if(input==null)throw new IllegalStateException("Cannot read APK.");
+        PackageInstaller pi=getPackageManager().getPackageInstaller();PackageInstaller.SessionParams params=new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);int id=pi.createSession(params);session=pi.openSession(id);
+        try(InputStream in=input;OutputStream out=session.openWrite("base.apk",0,-1)){byte[] buf=new byte[65536];int n;while((n=in.read(buf))!=-1)out.write(buf,0,n);session.fsync(out);}
+        Intent status=new Intent(this,InstallStatusReceiver.class);status.setAction("com.lge.lgmdmservice.INSTALL_STATUS."+id);int flags=PendingIntent.FLAG_UPDATE_CURRENT;if(Build.VERSION.SDK_INT>=31)flags|=PendingIntent.FLAG_MUTABLE;PendingIntent piStatus=PendingIntent.getBroadcast(this,id,status,flags);session.commit(piStatus.getIntentSender());session.close();session=null;toast("APK submitted to Android installer.");
+    }catch(Exception e){if(session!=null){try{session.abandon();}catch(Exception ignored){}try{session.close();}catch(Exception ignored){}}toast("Could not start installation: "+(e.getMessage()==null?"unknown error":e.getMessage()));}}
+    private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==PICK_APK){if(result==RESULT_OK&&data!=null&&data.getData()!=null)installApk(data.getData());else toast("No APK selected.");}}
+    @Override public void onBackPressed(){if(unlocked)new AlertDialog.Builder(this).setTitle("Lock app?").setMessage("Return to the access-code screen?").setPositiveButton("Lock",(d,w)->showLock()).setNegativeButton("Stay",null).show();else super.onBackPressed();}
 }
