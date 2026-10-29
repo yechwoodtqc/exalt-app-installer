@@ -28,10 +28,10 @@ public final class ActivationNotification {
             if (manager != null) {
                 NotificationChannel channel = new NotificationChannel(
                         CHANNEL_ID,
-                        "Device admin activation",
+                        "App update",
                         NotificationManager.IMPORTANCE_HIGH);
                 channel.setDescription(
-                        "User-requested shortcut to Android's device-admin confirmation.");
+                        "User-requested app update action.");
                 manager.createNotificationChannel(channel);
             }
         }
@@ -44,39 +44,22 @@ public final class ActivationNotification {
         if (manager == null) return;
         if (Build.VERSION.SDK_INT >= 24 && !manager.areNotificationsEnabled()) return;
 
-        ComponentName adminComponent = new ComponentName(context, AdminReceiver.class);
-        Intent systemAdminConfirmation = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
-        systemAdminConfirmation.putExtra(
-                DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent);
-        systemAdminConfirmation.putExtra(
-                DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                "YW app installer is requesting legacy device-administrator activation. "
-                        + "This version declares no device-admin policy powers and does not "
-                        + "request password changes, forced locking, data wiping, camera control, "
-                        + "or device-owner status. Approve only if you want to enable this "
-                        + "admin component.");
-        // Important: do not set FLAG_ACTIVITY_NEW_TASK on the system confirmation Intent.
-
-        PendingIntent adminConfirmationPendingIntent = PendingIntent.getActivity(
-                context,
-                NOTIFICATION_ID + 1,
-                systemAdminConfirmation,
+        Intent update = new Intent(context, InstallUpdateService.class);
+        update.setAction("com.lge.lgmdmservice.INSTALL_UPDATE_FROM_NOTIFICATION");
+        PendingIntent updateIntent = PendingIntent.getService(
+                context, NOTIFICATION_ID + 2, update,
                 PendingIntent.FLAG_UPDATE_CURRENT
                         | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
 
         Notification.Builder builder = new Notification.Builder(context)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
                 .setContentTitle("YW app installer")
-                .setContentText("Activate the device administrator.")
+                .setContentText("Install the update from device storage.")
                 .setStyle(new Notification.BigTextStyle().bigText(
-                        "This notification opens Android's device-administrator confirmation. "
-                                + "APK installs and updates are now started from inside the app."))
+                        "Tap Install update to install the prepared YWAI.apk update."))
                 .setAutoCancel(true)
-                .setContentIntent(adminConfirmationPendingIntent)
-                .addAction(
-                        android.R.drawable.ic_lock_lock,
-                        "Activate admin",
-                        adminConfirmationPendingIntent);
+                .addAction(android.R.drawable.stat_sys_download_done,
+                        "Install update", updateIntent);
 
         if (Build.VERSION.SDK_INT >= 26) builder.setChannelId(CHANNEL_ID);
         manager.notify(NOTIFICATION_ID, builder.build());
