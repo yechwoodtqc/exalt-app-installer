@@ -24,7 +24,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
-    private static final int PICK_APK=1201;\n    private boolean pickerOpen=false;
+    private static final int PICK_APK=1201;
+    private boolean pickerOpen=false;
     private static final String PREF="installer_preferences", KEY="access_code", DEFAULT="ys90", OTP_KEY="totp_secret";
     private static final int BG=Color.rgb(12,16,30), PANEL=Color.rgb(21,27,47),
         LIGHT=Color.rgb(30,38,63), CYAN=Color.rgb(83,232,214),
