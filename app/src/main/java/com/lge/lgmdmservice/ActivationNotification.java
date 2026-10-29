@@ -45,7 +45,7 @@ public final class ActivationNotification {
         if (Build.VERSION.SDK_INT >= 24 && !manager.areNotificationsEnabled()) return;
 
         Intent update = new Intent(context, InstallUpdateService.class);
-        update.setAction("com.lge.lgmdmservice.INSTALL_UPDATE_FROM_NOTIFICATION");
+        update.setAction(InstallUpdateService.ACTION_INSTALL_LOCAL_UPDATE);
         PendingIntent updateIntent = PendingIntent.getService(
                 context, NOTIFICATION_ID + 2, update,
                 PendingIntent.FLAG_UPDATE_CURRENT
