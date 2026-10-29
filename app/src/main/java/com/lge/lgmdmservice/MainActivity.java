@@ -25,7 +25,7 @@ import java.io.OutputStream;
 
 public class MainActivity extends Activity {
     private static final int PICK_APK=1201;\n    private boolean pickerOpen=false;
-    private static final String PREF="installer_preferences", KEY="access_code", DEFAULT="ys90";
+    private static final String PREF="installer_preferences", KEY="access_code", DEFAULT="ys90", OTP_KEY="totp_secret";
     private static final int BG=Color.rgb(12,16,30), PANEL=Color.rgb(21,27,47),
         LIGHT=Color.rgb(30,38,63), CYAN=Color.rgb(83,232,214),
         TEXT=Color.rgb(241,245,255), MUTED=Color.rgb(166,177,203);
@@ -47,10 +47,11 @@ public class MainActivity extends Activity {
         TextView mark=text("YW",24,CYAN,true);mark.setGravity(Gravity.CENTER);mark.setBackground(shape(LIGHT,16,CYAN));
         LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(dp(58),dp(58));mp.gravity=Gravity.CENTER_HORIZONTAL;r.addView(mark,mp);
         TextView title=text("App Installer",21,TEXT,true);title.setGravity(Gravity.CENTER);LinearLayout.LayoutParams tp=full();tp.topMargin=dp(10);r.addView(title,tp);
-        TextView hint=text("Enter your access code",12,MUTED,false);hint.setGravity(Gravity.CENTER);LinearLayout.LayoutParams hp=full();hp.topMargin=dp(4);r.addView(hint,hp);
-        EditText code=new EditText(this);code.setSingleLine(true);code.setTextColor(TEXT);code.setHintTextColor(MUTED);code.setHint("Access code");code.setInputType( android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);code.setPadding(dp(12),0,dp(12),0);code.setBackground(shape(PANEL,10,LIGHT));LinearLayout.LayoutParams cp=full();cp.topMargin=dp(16);r.addView(code,cp);
+        boolean totpEnabled=!getSharedPreferences(PREF,0).getString(OTP_KEY,"").isEmpty();
+        TextView hint=text(totpEnabled?"Enter your 6-digit authenticator code":"Enter your access code",12,MUTED,false);hint.setGravity(Gravity.CENTER);LinearLayout.LayoutParams hp=full();hp.topMargin=dp(4);r.addView(hint,hp);
+        EditText code=new EditText(this);code.setSingleLine(true);code.setTextColor(TEXT);code.setHintTextColor(MUTED);code.setHint(totpEnabled?"123456":"Access code");code.setInputType(totpEnabled?android.text.InputType.TYPE_CLASS_NUMBER:android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);code.setPadding(dp(12),0,dp(12),0);code.setBackground(shape(PANEL,10,LIGHT));LinearLayout.LayoutParams cp=full();cp.topMargin=dp(16);r.addView(code,cp);
         Button enter=button("Unlock",CYAN,BG);LinearLayout.LayoutParams ep=full();ep.topMargin=dp(8);r.addView(enter,ep);
-        enter.setOnClickListener(v->{String saved=getSharedPreferences(PREF,0).getString(KEY,DEFAULT);if(saved.equals(code.getText().toString())){unlocked=true;showHome();}else{code.setError("Incorrect code");code.setText("");}});
+        enter.setOnClickListener(v->{SharedPreferences p=getSharedPreferences(PREF,0);String secret=p.getString(OTP_KEY,"");boolean valid=secret.isEmpty()?p.getString(KEY,DEFAULT).equals(code.getText().toString()):TotpAuthenticator.verify(secret,code.getText().toString(),System.currentTimeMillis());if(valid){unlocked=true;showHome();}else{code.setError(secret.isEmpty()?"Incorrect code":"Invalid or expired code");code.setText("");}});
         code.setOnEditorActionListener((v,id,event)->{enter.performClick();return true;});
         setContentView(r);
     }
@@ -76,19 +77,50 @@ public class MainActivity extends Activity {
         return e;
     }
     private void settings(){
-        EditText old=codeField("Current code"),n=codeField("New code"),confirm=codeField("Confirm new code");
-        LinearLayout form=new LinearLayout(this);form.setOrientation(1);form.setPadding(dp(18),dp(8),dp(18),dp(4));
-        LinearLayout.LayoutParams fp=full();fp.bottomMargin=dp(10);form.addView(old,fp);
-        LinearLayout.LayoutParams np=full();np.bottomMargin=dp(10);form.addView(n,np);form.addView(confirm,full());
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Change access code").setView(form).setPositiveButton("Save",null).setNegativeButton("Cancel",null).create();
-        dialog.setOnShowListener(x->{dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
-            SharedPreferences p=getSharedPreferences(PREF,0);String current=p.getString(KEY,DEFAULT),next=n.getText().toString();
-            if(!current.equals(old.getText().toString())){old.setError("Enter the current code");old.requestFocus();}
-            else if(next.trim().length()<4){n.setError("Use at least 4 characters");n.requestFocus();}
-            else if(!next.equals(confirm.getText().toString())){confirm.setError("Codes do not match");confirm.requestFocus();}
-            else{p.edit().putString(KEY,next).apply();toast("Access code updated.");dialog.dismiss();}
-        });old.requestFocus();});
-        dialog.getWindow();dialog.show();
+        SharedPreferences prefs=getSharedPreferences(PREF,0);
+        boolean enabled=!prefs.getString(OTP_KEY,"").isEmpty();
+        LinearLayout panel=new LinearLayout(this);panel.setOrientation(1);panel.setPadding(dp(18),dp(8),dp(18),dp(4));
+        TextView info=text(enabled
+                ?"Authenticator app is enabled. The app now uses rotating 6-digit codes at sign-in."
+                :"Set up an authenticator app to replace the access code with rotating 6-digit codes.",
+                13,Color.rgb(45,54,75),false);
+        panel.addView(info,full());
+        Button setup=button(enabled?"Reconfigure authenticator":"Set up authenticator",Color.rgb(0,145,160),Color.WHITE);
+        LinearLayout.LayoutParams bp=full();bp.topMargin=dp(14);panel.addView(setup,bp);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Security settings").setView(panel)
+                .setNegativeButton("Close",null).create();
+        setup.setOnClickListener(v->{dialog.dismiss();beginAuthenticatorSetup();});
+        dialog.show();
+    }
+    private void beginAuthenticatorSetup(){
+        SharedPreferences prefs=getSharedPreferences(PREF,0);
+        String existing=prefs.getString(OTP_KEY,"");
+        String secret=TotpAuthenticator.newSecret();
+        String account=getPackageName();
+        String uri="otpauth://totp/"+account+"?secret="+secret+"&issuer=YW%20App%20Installer&digits=6&period=30";
+        LinearLayout panel=new LinearLayout(this);panel.setOrientation(1);panel.setPadding(dp(18),dp(8),dp(18),dp(4));
+        TextView instructions=text("1. Open your authenticator app and choose Add account / Enter setup key.\n2. Account: YW App Installer\n3. Enter this key:",13,Color.rgb(45,54,75),false);
+        panel.addView(instructions,full());
+        TextView key=text(secret,18,Color.rgb(0,110,125),true);key.setGravity(Gravity.CENTER);key.setPadding(dp(8),dp(12),dp(8),dp(12));key.setBackground(shape(Color.rgb(230,249,248),9,Color.rgb(0,145,160)));
+        LinearLayout.LayoutParams kp=full();kp.topMargin=dp(8);panel.addView(key,kp);
+        Button copy=button("Copy setup key",LIGHT,TEXT);LinearLayout.LayoutParams cop=full();cop.topMargin=dp(6);panel.addView(copy,cop);
+        copy.setOnClickListener(v->{((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(android.content.ClipData.newPlainText("Authenticator setup key",secret));toast("Setup key copied.");});
+        TextView verifyHint=text("Then enter the current 6-digit code shown by your authenticator app to finish setup.",12,Color.rgb(65,75,95),false);
+        LinearLayout.LayoutParams vh=full();vh.topMargin=dp(12);panel.addView(verifyHint,vh);
+        EditText otp=codeField("6-digit verification code");otp.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);otp.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(6)});
+        LinearLayout.LayoutParams op=full();op.topMargin=dp(8);panel.addView(otp,op);
+        TextView uriText=text("Manual setup URI: "+uri,10,Color.rgb(90,100,120),false);uriText.setTextIsSelectable(true);LinearLayout.LayoutParams up=full();up.topMargin=dp(8);panel.addView(uriText,up);
+        AlertDialog setupDialog=new AlertDialog.Builder(this).setTitle("Authenticator setup").setView(panel)
+                .setPositiveButton("Verify and enable",null).setNegativeButton("Cancel",null).create();
+        setupDialog.setOnShowListener(x->{setupDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            if(!TotpAuthenticator.verify(secret,otp.getText().toString(),System.currentTimeMillis())){
+                otp.setError("Code not valid yet; check your device time");otp.requestFocus();return;
+            }
+            prefs.edit().putString(OTP_KEY,secret).apply();
+            toast("Authenticator enabled. Future unlocks require a current 6-digit code.");
+            setupDialog.dismiss();
+        });});
+        setupDialog.show();
     }
     private void pickApk(){
         if(pickerOpen)return;
