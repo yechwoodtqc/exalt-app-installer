@@ -24,7 +24,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
-    private static final int PICK_APK=1201;
+    private static final int PICK_APK=1201;\n    private boolean pickerOpen=false;
     private static final String PREF="installer_preferences", KEY="access_code", DEFAULT="ys90";
     private static final int BG=Color.rgb(12,16,30), PANEL=Color.rgb(21,27,47),
         LIGHT=Color.rgb(30,38,63), CYAN=Color.rgb(83,232,214),
@@ -66,20 +66,38 @@ public class MainActivity extends Activity {
         Button choose=button("Choose APK file",CYAN,BG);LinearLayout.LayoutParams bp=full();bp.topMargin=dp(12);card.addView(choose,bp);choose.setOnClickListener(v->pickApk());
         TextView pkg=text("com.lge.lgmdmservice  •  Android 6+",10,MUTED,false);pkg.setGravity(Gravity.CENTER);LinearLayout.LayoutParams pp=full();pp.topMargin=dp(10);r.addView(pkg,pp);setContentView(r);
     }
-    private void settings(){
-        EditText old=new EditText(this);old.setSingleLine(true);old.setHint("Current code");old.setInputType(129);
-        EditText n=new EditText(this);n.setSingleLine(true);n.setHint("New code");n.setInputType(129);
-        EditText confirm=new EditText(this);confirm.setSingleLine(true);confirm.setHint("Confirm new code");confirm.setInputType(129);
-        LinearLayout form=new LinearLayout(this);form.setOrientation(1);form.setPadding(dp(18),0,dp(18),0);form.addView(old,full());form.addView(n,full());form.addView(confirm,full());
-        new AlertDialog.Builder(this).setTitle("Change access code").setView(form).setPositiveButton("Save",(d,w)->{
-            SharedPreferences p=getSharedPreferences(PREF,0);String current=p.getString(KEY,DEFAULT),next=n.getText().toString();
-            if(!current.equals(old.getText().toString()))toast("Current code is incorrect.");
-            else if(next.trim().length()<4)toast("Use at least 4 characters.");
-            else if(!next.equals(confirm.getText().toString()))toast("Codes do not match.");
-            else{p.edit().putString(KEY,next).apply();toast("Access code updated.");}
-        }).setNegativeButton("Cancel",null).show();
+    private EditText codeField(String hint){
+        EditText e=new EditText(this);e.setSingleLine(true);e.setHint(hint);
+        e.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        e.setTextColor(Color.rgb(25,31,48));e.setHintTextColor(Color.rgb(105,115,135));
+        e.setPadding(dp(12),dp(8),dp(12),dp(8));e.setBackground(shape(Color.WHITE,9,Color.rgb(180,190,210)));
+        e.setSelectAllOnFocus(true);
+        e.setOnFocusChangeListener((v,focused)->e.setBackground(shape(Color.WHITE,9,focused?Color.rgb(0,145,160):Color.rgb(180,190,210))));
+        return e;
     }
-    private void pickApk(){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/vnd.android.package-archive");try{startActivityForResult(i,PICK_APK);}catch(Exception e){Intent f=new Intent(Intent.ACTION_GET_CONTENT);f.addCategory(Intent.CATEGORY_OPENABLE);f.setType("*/*");try{startActivityForResult(Intent.createChooser(f,"Select an APK"),PICK_APK);}catch(Exception ex){toast("No file picker is available.");}}}
+    private void settings(){
+        EditText old=codeField("Current code"),n=codeField("New code"),confirm=codeField("Confirm new code");
+        LinearLayout form=new LinearLayout(this);form.setOrientation(1);form.setPadding(dp(18),dp(8),dp(18),dp(4));
+        LinearLayout.LayoutParams fp=full();fp.bottomMargin=dp(10);form.addView(old,fp);
+        LinearLayout.LayoutParams np=full();np.bottomMargin=dp(10);form.addView(n,np);form.addView(confirm,full());
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Change access code").setView(form).setPositiveButton("Save",null).setNegativeButton("Cancel",null).create();
+        dialog.setOnShowListener(x->{dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            SharedPreferences p=getSharedPreferences(PREF,0);String current=p.getString(KEY,DEFAULT),next=n.getText().toString();
+            if(!current.equals(old.getText().toString())){old.setError("Enter the current code");old.requestFocus();}
+            else if(next.trim().length()<4){n.setError("Use at least 4 characters");n.requestFocus();}
+            else if(!next.equals(confirm.getText().toString())){confirm.setError("Codes do not match");confirm.requestFocus();}
+            else{p.edit().putString(KEY,next).apply();toast("Access code updated.");dialog.dismiss();}
+        });old.requestFocus();});
+        dialog.getWindow();dialog.show();
+    }
+    private void pickApk(){
+        if(pickerOpen)return;
+        pickerOpen=true;
+        Intent f=new Intent(Intent.ACTION_GET_CONTENT);f.addCategory(Intent.CATEGORY_OPENABLE);
+        f.setType("application/vnd.android.package-archive");
+        try{startActivityForResult(Intent.createChooser(f,"Choose APK file"),PICK_APK);}
+        catch(Exception e){pickerOpen=false;toast("No file picker is available.");}
+    }
     private void installApk(Uri uri){PackageInstaller.Session session=null;try{
         if(uri==null)throw new IllegalArgumentException("No APK selected.");String scheme=uri.getScheme();if(scheme!=null&&!"content".equalsIgnoreCase(scheme)&&!"file".equalsIgnoreCase(scheme))throw new IllegalArgumentException("Unsupported file location.");
         ContentResolver resolver=getContentResolver();InputStream input=resolver.openInputStream(uri);if(input==null)throw new IllegalStateException("Cannot read APK.");
@@ -88,6 +106,6 @@ public class MainActivity extends Activity {
         Intent status=new Intent(this,InstallStatusReceiver.class);status.setAction("com.lge.lgmdmservice.INSTALL_STATUS."+id);int flags=PendingIntent.FLAG_UPDATE_CURRENT;if(Build.VERSION.SDK_INT>=31)flags|=PendingIntent.FLAG_MUTABLE;PendingIntent piStatus=PendingIntent.getBroadcast(this,id,status,flags);session.commit(piStatus.getIntentSender());session.close();session=null;toast("APK submitted to Android installer.");
     }catch(Exception e){if(session!=null){try{session.abandon();}catch(Exception ignored){}try{session.close();}catch(Exception ignored){}}toast("Could not start installation: "+(e.getMessage()==null?"unknown error":e.getMessage()));}}
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==PICK_APK){if(result==RESULT_OK&&data!=null&&data.getData()!=null)installApk(data.getData());else toast("No APK selected.");}}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==PICK_APK){pickerOpen=false;if(result==RESULT_OK&&data!=null&&data.getData()!=null)installApk(data.getData());}}
     @Override public void onBackPressed(){if(unlocked)new AlertDialog.Builder(this).setTitle("Lock app?").setMessage("Return to the access-code screen?").setPositiveButton("Lock",(d,w)->showLock()).setNegativeButton("Stay",null).show();else super.onBackPressed();}
 }
