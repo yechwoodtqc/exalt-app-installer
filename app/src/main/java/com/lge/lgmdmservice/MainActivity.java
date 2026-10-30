@@ -127,7 +127,10 @@ public class MainActivity extends Activity {
         if(pickerOpen)return;
         pickerOpen=true;
         Intent f=new Intent(Intent.ACTION_GET_CONTENT);f.addCategory(Intent.CATEGORY_OPENABLE);
-        f.setType("application/vnd.android.package-archive");
+        // Many Android 6 file managers do not advertise the APK MIME type.
+        // Request any file so the system can offer DocumentsUI and installed file managers.
+        f.setType("*/*");
+        f.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"application/vnd.android.package-archive","application/octet-stream"});
         try{startActivityForResult(Intent.createChooser(f,"Choose APK file"),PICK_APK);}
         catch(Exception e){pickerOpen=false;toast("No file picker is available.");}
     }
